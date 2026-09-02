@@ -1,0 +1,34 @@
+# data & results — never commit
+data/
+output/
+checkpoint/
+checkpoints/
+exp/
+logs*/
+*.log
+wandb/
+
+# heavyweight artifacts
+*.pth
+*.pt
+*.ckpt
+*.ply
+*.zip
+*.tar.gz
+*.mp4
+*.gif
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+.venv/
+venv/
+
+# per-baseline data symlinks / downloads
+PAC-NeRF/data
+PAC-NeRF/checkpoint
+GIC/data
+Spring-Gaus/data
+MASIV/data
