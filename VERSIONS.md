@@ -9,6 +9,8 @@ Local modifications are committed on top; diff against the commits below to see 
 | GIC/ | https://github.com/Jukgei/gic.git | b523851ed4343109ff67b0ea123e0a154af2a40c |
 | Spring-Gaus/ | https://github.com/Colmar-zlicheng/Spring-Gaus.git (+submodules) | 62a1bb5dbe83fe4396efa7048d3226754ac8fe1d |
 | MASIV/ | https://github.com/Skaldak/MASIV.git | (to vendor after smoke run; currently at /scr/chujunta/gic_staging/MASIV, f05ff17) |
+| Vid2Sim/ | https://github.com/CzzzzH/Vid2Sim.git | 8fbb26d7e16ca03b5322e490c7a8d422f70c2e57 |
+| NeuMA/ | https://github.com/XJay18/NeuMA.git | (cloned 2026-09-02; extern rasterizer pinned 59f5f77e) |
 
 ## Local modifications so far
 
