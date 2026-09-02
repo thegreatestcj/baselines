@@ -219,7 +219,10 @@ if __name__ == "__main__":
     safe_state(gs_args.quiet)
     dataset = model.extract(gs_args)
     
-    ti.init(arch=ti.cuda, debug=False, fast_math=False, device_memory_fraction=0.4)
+    if os.environ.get('TI_DEVICE_MEMORY_GB'):
+        ti.init(arch=ti.cuda, debug=False, fast_math=False, device_memory_GB=float(os.environ['TI_DEVICE_MEMORY_GB']))
+    else:
+        ti.init(arch=ti.cuda, debug=False, fast_math=False, device_memory_fraction=0.4)
 
     # 0. Load trained pcd
     vol = load_pcd_file(dataset.model_path, gs_args.iteration)
