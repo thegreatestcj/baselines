@@ -33,10 +33,6 @@ GIC/data
 Spring-Gaus/data
 MASIV/data
 
-# Vid2Sim data & weights
-Vid2Sim/dataset/
-Vid2Sim/checkpoints/
-Vid2Sim/outputs/
 *.safetensors
 NeuMA/data/
 NeuMA/checkpoints/

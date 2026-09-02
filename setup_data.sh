@@ -14,6 +14,12 @@ REPO=HoneyLane/gic-baselines-data
 mkdir -p "$STORE"
 hf download "$REPO" --repo-type dataset --local-dir "$STORE"
 
+# pacnerf and the Vid2Sim GSO set ship as tars (tens of thousands of small
+# files rate-limit the Hub otherwise); unpack once, then drop the tars.
+if [ ! -d "$STORE/pacnerf" ] && [ -f "$STORE/pacnerf.tar" ]; then
+  tar xf "$STORE/pacnerf.tar" -C "$STORE" && rm -f "$STORE/pacnerf.tar"
+fi
+
 link () { mkdir -p "$(dirname "$2")"; ln -sfn "$1" "$2"; }
 
 # PAC-NeRF: data/<material>/<id>/{all_data.json,data/,transforms_*.json}
@@ -34,10 +40,6 @@ link "$STORE/spring_gaus"                   MASIV/data/Spring-Gaus
 
 # Spring-Gaus
 link "$STORE/spring_gaus"                   Spring-Gaus/data
-
-# Vid2Sim
-link "$STORE/vid2sim/dataset"               Vid2Sim/dataset
-link "$STORE/vid2sim/checkpoints"           Vid2Sim/checkpoints
 
 # NeuMA: TODO once its setup lands
 
