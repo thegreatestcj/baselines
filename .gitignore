@@ -37,3 +37,4 @@ MASIV/data
 NeuMA/data/
 NeuMA/checkpoints/
 NeuMA/outputs/
+env.local.sh

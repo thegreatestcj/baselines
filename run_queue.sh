@@ -27,16 +27,11 @@ PER=${2:-1}
 Q=$PWD/tasks.txt
 LOCK=$Q.lock
 CSV=$PWD/timings.csv
-PY_GIC=/home/chujunta/miniforge3/envs/gic/bin/python
+source "$PWD/env.sh"
+PY_GIC=$BASELINES_PY
 [ -f "$Q" ] || { echo "no tasks.txt — run gen_tasks.sh first"; exit 1; }
+[ -x "$PY_GIC" ] || { echo "no usable python — set BASELINES_PY or run env/setup_env.sh"; exit 1; }
 [ -f "$CSV" ] || echo "tag,gpu,start,end,seconds,status" > "$CSV"
-
-export TI_DEVICE_MEMORY_GB=20
-export TORCH_CUDA_ARCH_LIST=9.0
-export TI_OFFLINE_CACHE=1
-export TI_OFFLINE_CACHE_FILE_PATH=$PWD/.ti_cache
-export CUDA_HOME=/scr/chujunta/envs/masiv
-export PATH=/scr/chujunta/envs/masiv/bin:$PATH
 
 pop_task() {
   flock "$LOCK" bash -c "head -n1 '$Q'; sed -i '1d' '$Q'"
