@@ -193,6 +193,8 @@ def render_new(dataset: ModelParams, pipeline: PipelineParams, phys_args, scene,
             else:
                 view = render_views[0]
             xyz = simulator.forward(f)
+            if getattr(phys_args, 'save_ply', False):
+                write_particles(xyz, f, os.path.join(dataset.model_path, 'render'))
             d_xyz = xyz - gaussians.get_xyz.detach()
             results = render(view, gaussians, pipeline, background, d_xyz, 0.0, 0.0, False)
             rendering = results["render"]
@@ -208,6 +210,7 @@ if __name__ == "__main__":
     parser.add_argument('-vid', '--view_id', type=int, default=0)
     parser.add_argument('-knn', '--use_knn', type=bool, default=False)
     parser.add_argument('-cid', '--config_id', type=int, default=0)
+    parser.add_argument('--save_ply', action='store_true', help='dump per-frame simulated particles to render/mpm/')
     model = ModelParams(parser)#, sentinel=True)
     pipeline = PipelineParams(parser)
     op = OptimizationParams(parser)
@@ -215,6 +218,7 @@ if __name__ == "__main__":
     phys_args.view_id = gs_args.view_id
     setattr(phys_args, "use_knn", gs_args.use_knn)
     setattr(phys_args, "config_id", gs_args.config_id)
+    setattr(phys_args, "save_ply", gs_args.save_ply)
     print(phys_args)
     safe_state(gs_args.quiet)
     dataset = model.extract(gs_args)

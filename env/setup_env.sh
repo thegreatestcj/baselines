@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bootstrap the "gic-baselines" conda env on a fresh machine.
+# Bootstrap the "baselines" conda env on a fresh machine.
 # Covers PAC-NeRF, GIC and Spring-Gaus (they share one stack), and creates
 # the NeuMA venv on top of it. Requires: conda, a CUDA 12.x toolkit (nvcc),
 # and a GPU driver >= the toolkit version.
@@ -10,13 +10,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # --- main env: python 3.9 + torch cu121 + taichi 1.2 stack (GIC's spec) ---
-conda env create -n gic-baselines -f GIC/environment.yml || true
-PY=$(conda env list | awk '/gic-baselines/{print $NF}')/bin/python
+conda env create -n baselines -f env/environment.yml || true
+PY="$(conda info --base)/envs/baselines/bin/python"
 $PY -m pip install ninja yacs termcolor gitpython
 
-# Spring-Gaus rasterizer/simple-knn come from GIC's environment.yml already
-# (diff-gaussian-rasterization + simple-knn). Its rasterizer returns 3+
-# values; the vendored Spring-Gaus code is already patched for that.
+# Spring-Gaus reuses the same rasterizer/simple-knn (installed above from
+# env/environment.yml as pinned git+https builds); the vendored Spring-Gaus
+# code is already patched for the 3-value rasterizer return.
 
 # --- NeuMA venv (needs old warp-lang 0.6.1, incompatible with main env) ---
 $PY -m venv --system-site-packages NeuMA/.venv

@@ -8,10 +8,10 @@
 [ -f "$(dirname "${BASH_SOURCE[0]}")/env.local.sh" ] && source "$(dirname "${BASH_SOURCE[0]}")/env.local.sh"
 
 # Python interpreter that has the baseline deps (see env/setup_env.sh to
-# build it as a conda env named "gic-baselines").
-if [ -z "${BASELINES_PY:-}" ] && command -v conda >/dev/null \
-   && conda env list 2>/dev/null | grep -q "gic-baselines"; then
-  BASELINES_PY=$(conda env list | awk '/gic-baselines/{print $NF}')/bin/python
+# build it as a conda env named "baselines").
+if [ -z "${BASELINES_PY:-}" ] && command -v conda >/dev/null; then
+  _cand="$(conda info --base 2>/dev/null)/envs/baselines/bin/python"
+  [ -x "$_cand" ] && BASELINES_PY=$_cand
 fi
 export BASELINES_PY=${BASELINES_PY:-$(command -v python)}
 
