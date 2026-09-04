@@ -18,12 +18,20 @@ HF="$(dirname "$BASELINES_PY")/hf"
 [ -x "$HF" ] || HF=$(command -v hf) || { echo "hf CLI not found — run env/setup_env.sh first" >&2; exit 1; }
 
 mkdir -p "$STORE"
-"$HF" download "$REPO" --repo-type dataset --local-dir "$STORE"
+# hf download resumes partial downloads; retry a few times around Hub 429s.
+for attempt in 1 2 3 4; do
+  "$HF" download "$REPO" --repo-type dataset --local-dir "$STORE" && break
+  [ "$attempt" = 4 ] && { echo "HF download failed after 4 attempts" >&2; exit 1; }
+  echo "download interrupted (attempt $attempt), retrying in 90s..."; sleep 90
+done
 
 # pacnerf and the Vid2Sim GSO set ship as tars (tens of thousands of small
 # files rate-limit the Hub otherwise); unpack once, then drop the tars.
 if [ ! -d "$STORE/pacnerf" ] && [ -f "$STORE/pacnerf.tar" ]; then
   tar xf "$STORE/pacnerf.tar" -C "$STORE" && rm -f "$STORE/pacnerf.tar"
+fi
+if [ ! -d "$STORE/spring_gaus" ] && [ -f "$STORE/spring_gaus.tar" ]; then
+  tar xf "$STORE/spring_gaus.tar" -C "$STORE" && rm -f "$STORE/spring_gaus.tar"
 fi
 
 link () { mkdir -p "$(dirname "$2")"; ln -sfn "$1" "$2"; }
