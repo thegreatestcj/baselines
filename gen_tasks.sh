@@ -6,11 +6,21 @@
 # run time, so a stale queue is harmless).
 set -u
 cd "$(dirname "$0")"
-want() { [ $# -eq 0 ] || [[ " $* " == *" $1 "* ]]; }
+
+# --shard i/N: emit only every N-th task (0-based shard i). For multi-node
+# runs on node-local storage: node i generates its own shard, no shared
+# state needed; merge results/ afterwards.
+SHARD_I=0; SHARD_N=1
+if [ "${1:-}" = "--shard" ]; then
+  SHARD_I=${2%%/*}; SHARD_N=${2##*/}; shift 2
+fi
+_emitted=0
 ALL=${@:-pacnerf gic sgs}
 
 emit() { # tag workdir done cmd
   [ -f "$2/$3" ] && return
+  _emitted=$((_emitted+1))
+  [ $(( (_emitted-1) % SHARD_N )) -eq "$SHARD_I" ] || return 0
   echo "$1|$2|$3|$4"
 }
 

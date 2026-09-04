@@ -45,6 +45,14 @@ worker() {
     local tag workdir done cmd
     IFS='|' read -r tag workdir done cmd <<< "$line"
     if [ -f "$workdir/$done" ]; then echo "[skip] $tag"; continue; fi
+    # cross-node claim: mkdir is atomic on shared filesystems too (flock on
+    # the queue file is not). A stale claim from a crashed run is released
+    # with: find . -name '*.claim' -mmin +900 -exec rm -rf {} +
+    local claim="$workdir/$done.claim"
+    if ! mkdir -p "$(dirname "$claim")" || ! mkdir "$claim" 2>/dev/null; then
+      echo "[claimed] $tag"; continue
+    fi
+    echo "$(hostname):$$" > "$claim/owner"
     local logf="$PWD/logs/$(tr :/ __ <<< "$tag").log"
     mkdir -p "$PWD/logs"
     local t0=$(date +%s) status=ok
@@ -56,6 +64,7 @@ worker() {
       ( cd "$workdir" && CUDA_VISIBLE_DEVICES=$gpu ${cmd/python/$PY_GIC} ) >> "$logf" 2>&1 || status=fail
     fi
     local t1=$(date +%s)
+    rm -rf "$claim"
     flock "$CSV" bash -c "echo '$tag,$gpu,$t0,$t1,$((t1-t0)),$status' >> '$CSV'"
     [ $status = fail ] && echo "[FAIL] $tag (log: $logf)"
   done
