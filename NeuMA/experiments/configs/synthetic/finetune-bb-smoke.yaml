@@ -15,13 +15,13 @@ gaussian:
   opacity_thres: 0.02
   confidence: 0.95
   max_particles: 10
-  kernels_path: /scr/chujunta/gic_staging/baselines/NeuMA/experiments/assets/bouncyball/kernels.ply
+  kernels_path: experiments/assets/bouncyball/kernels.ply
 
 video_data:
   eval: false
   camera_type: NeuMASynthetic
   data:
-    path: /scr/chujunta/gic_staging/baselines/NeuMA/data/NeuMA-Synthetic/data/BouncyBall
+    path: data/NeuMA-Synthetic/data/BouncyBall
     transformsfile: data_dynamic.json
     white_background: true
     exclude_steps:
@@ -56,7 +56,7 @@ particle_data:
     - [1., 1., 1.]
   rho: 1000.0
   clip_bound: 0.1
-  mesh_path: /scr/chujunta/gic_staging/baselines/NeuMA/experiments/assets/bouncyball/mesh.ply
+  mesh_path: experiments/assets/bouncyball/mesh.ply
   mesh_sample_mode: volumetric
   mesh_sample_resolution: 32      # For sampling from the mesh, larger values will result in more particles
 
