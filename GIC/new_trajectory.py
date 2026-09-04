@@ -136,7 +136,7 @@ def render_new(dataset: ModelParams, pipeline: PipelineParams, phys_args, scene,
     #     render_views = render_views[:phys_args.n_frames]
     views.sort(key=lambda cam: cam.fid)
 
-    path = os.path.join(dataset.model_path, 'render')
+    path = os.path.join(dataset.model_path, getattr(phys_args, 'out_name', 'render'))
     if not os.path.exists(path):
         mkdir_p(path)
     else:
@@ -194,13 +194,13 @@ def render_new(dataset: ModelParams, pipeline: PipelineParams, phys_args, scene,
                 view = render_views[0]
             xyz = simulator.forward(f)
             if getattr(phys_args, 'save_ply', False):
-                write_particles(xyz, f, os.path.join(dataset.model_path, 'render'))
+                write_particles(xyz, f, os.path.join(dataset.model_path, getattr(phys_args, 'out_name', 'render')))
             d_xyz = xyz - gaussians.get_xyz.detach()
             results = render(view, gaussians, pipeline, background, d_xyz, 0.0, 0.0, False)
             rendering = results["render"]
             alpha = results["alpha"]
             blend_img = alpha * rendering + (1.0 - alpha) * bg
-            torchvision.utils.save_image(blend_img, os.path.join(dataset.model_path, 'render', '{0:05d}'.format(f) + ".png"))
+            torchvision.utils.save_image(blend_img, os.path.join(dataset.model_path, getattr(phys_args, 'out_name', 'render'), '{0:05d}'.format(f) + ".png"))
 
 
 if __name__ == "__main__":
@@ -211,6 +211,7 @@ if __name__ == "__main__":
     parser.add_argument('-knn', '--use_knn', type=bool, default=False)
     parser.add_argument('-cid', '--config_id', type=int, default=0)
     parser.add_argument('--save_ply', action='store_true', help='dump per-frame simulated particles to render/mpm/')
+    parser.add_argument('--out_name', type=str, default='render', help='output subdir under model_path (renders + mpm plys)')
     model = ModelParams(parser)#, sentinel=True)
     pipeline = PipelineParams(parser)
     op = OptimizationParams(parser)
@@ -219,6 +220,7 @@ if __name__ == "__main__":
     setattr(phys_args, "use_knn", gs_args.use_knn)
     setattr(phys_args, "config_id", gs_args.config_id)
     setattr(phys_args, "save_ply", gs_args.save_ply)
+    setattr(phys_args, "out_name", gs_args.out_name)
     print(phys_args)
     safe_state(gs_args.quiet)
     dataset = model.extract(gs_args)
@@ -244,7 +246,7 @@ if __name__ == "__main__":
     render_new(dataset, pipeline.extract(gs_args), phys_args, scene, simulator, read_bg(phys_args, scene, dataset))
 
     # 3. Generate *.mp4 file
-    os.chdir(os.path.join(dataset.model_path, 'render'))
+    os.chdir(os.path.join(dataset.model_path, getattr(phys_args, 'out_name', 'render')))
     # cmd = f'ffmpeg -y -framerate {phys_args.fps} -i %05d.png -pix_fmt yuv420p output.mp4'
     cmd = ['ffmpeg', '-y', '-framerate', f'{phys_args.fps}', '-i', '%05d.png', '-pix_fmt', 'yuv420p', 'output.mp4']
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

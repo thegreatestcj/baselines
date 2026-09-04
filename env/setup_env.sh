@@ -25,6 +25,10 @@ if [ ! -x "$PY" ]; then
 fi
 $PY -m pip install ninja yacs termcolor gitpython "huggingface_hub[cli]"
 
+# Compiled rasterizer/simple-knn are vendored (pinned upstream + cstdint fix
+# for newer gcc); installed here rather than from git+ so the patch applies.
+$PY -m pip install env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
+
 # Spring-Gaus reuses the same rasterizer/simple-knn (installed above from
 # env/environment.yml as pinned git+https builds); the vendored Spring-Gaus
 # code is already patched for the 3-value rasterizer return.
