@@ -2,17 +2,23 @@
 # One-shot data setup for the baselines repo.
 # Downloads all prepared datasets/weights from the HF dataset repo and wires
 # the symlinks each baseline expects. Requires: `hf` CLI logged in with a token
-# that can read PhysSimCode/gic-baselines-data.
+# that can read HoneyLane/gic-baselines-data.
 #
 # Usage: bash setup_data.sh [DATA_STORE_DIR]
 #   DATA_STORE_DIR: where to put the actual files (default: ./data_store)
 set -euo pipefail
 cd "$(dirname "$0")"
+source env.sh
 STORE=${1:-$PWD/data_store}
 REPO=HoneyLane/gic-baselines-data
 
+# hf CLI from the baselines env (installed by env/setup_env.sh), with a
+# PATH fallback for people who bring their own.
+HF="$(dirname "$BASELINES_PY")/hf"
+[ -x "$HF" ] || HF=$(command -v hf) || { echo "hf CLI not found — run env/setup_env.sh first" >&2; exit 1; }
+
 mkdir -p "$STORE"
-hf download "$REPO" --repo-type dataset --local-dir "$STORE"
+"$HF" download "$REPO" --repo-type dataset --local-dir "$STORE"
 
 # pacnerf and the Vid2Sim GSO set ship as tars (tens of thousands of small
 # files rate-limit the Hub otherwise); unpack once, then drop the tars.
