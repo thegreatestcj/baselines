@@ -8,7 +8,7 @@ Local modifications are committed on top; diff against the commits below to see 
 | PAC-NeRF/ | https://github.com/xuan-li/PAC-NeRF.git | b613048557d0648e885697ececbef80297defac0 |
 | GIC/ | https://github.com/Jukgei/gic.git | b523851ed4343109ff67b0ea123e0a154af2a40c |
 | Spring-Gaus/ | https://github.com/Colmar-zlicheng/Spring-Gaus.git (+submodules) | 62a1bb5dbe83fe4396efa7048d3226754ac8fe1d |
-| MASIV/ | https://github.com/Skaldak/MASIV.git | (to vendor after smoke run; currently at /scr/chujunta/gic_staging/MASIV, f05ff17) |
+| MASIV/ | https://github.com/Skaldak/MASIV.git | f05ff17 (vendored with velocity/constitution smoke validated) |
 | NeuMA/ | https://github.com/XJay18/NeuMA.git | (cloned 2026-09-02; extern rasterizer pinned 59f5f77e) |
 
 ## Local modifications so far
