@@ -25,13 +25,12 @@ if [ ! -x "$PY" ]; then
 fi
 $PY -m pip install ninja yacs termcolor gitpython "huggingface_hub[cli]"
 
-# Compiled rasterizer/simple-knn are vendored (pinned upstream + cstdint fix
-# for newer gcc); installed here rather than from git+ so the patch applies.
+# Compiled CUDA deps are vendored with the cstdint header fix for newer gcc
+# (unpatchable as git+ installs). Two rasterizers coexist under different
+# module names: GIC imports diff_gauss (jukgei fork), Spring-Gaus imports
+# diff_gaussian_rasterization (its own submodule).
 $PY -m pip install env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
-
-# Spring-Gaus reuses the same rasterizer/simple-knn (installed above from
-# env/environment.yml as pinned git+https builds); the vendored Spring-Gaus
-# code is already patched for the 3-value rasterizer return.
+$PY -m pip install Spring-Gaus/submodules/diff-gaussian-rasterization
 
 # --- NeuMA venv (needs old warp-lang 0.6.1, incompatible with main env) ---
 if [ ! -x NeuMA/.venv/bin/python ]; then
