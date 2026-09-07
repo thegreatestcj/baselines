@@ -57,11 +57,11 @@ worker() {
     mkdir -p "$PWD/logs"
     local t0=$(date +%s) status=ok
     echo "[gpu$gpu.w$wid] $tag  $(date '+%m-%d %H:%M')"
-    ( cd "$workdir" && CUDA_VISIBLE_DEVICES=$gpu ${cmd/#python /$PY_GIC } ) > "$logf" 2>&1
+    ( cd "$workdir" && CUDA_VISIBLE_DEVICES=$gpu bash -c "${cmd/#python /$PY_GIC }" ) > "$logf" 2>&1
     if [ $? -ne 0 ]; then
       echo "[gpu$gpu.w$wid] $tag failed once; retrying in 60s"
       sleep 60
-      ( cd "$workdir" && CUDA_VISIBLE_DEVICES=$gpu ${cmd/#python /$PY_GIC } ) >> "$logf" 2>&1 || status=fail
+      ( cd "$workdir" && CUDA_VISIBLE_DEVICES=$gpu bash -c "${cmd/#python /$PY_GIC }" ) >> "$logf" 2>&1 || status=fail
     fi
     local t1=$(date +%s)
     rm -rf "$claim"
