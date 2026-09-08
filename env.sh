@@ -23,10 +23,11 @@ export PATH=$CUDA_HOME/bin:$PATH
 # taichi preallocation cap in GB. The upstream repos preallocate a FRACTION
 # of total GPU memory, which OOMs on large shared GPUs — 20G is plenty for
 # every scene in the benchmarks.
-export TI_DEVICE_MEMORY_GB=${TI_DEVICE_MEMORY_GB:-20}
+export TI_DEVICE_MEMORY_GB=${TI_DEVICE_MEMORY_GB:-16}
 
-# One-time JIT/compile speedups. Set TORCH_CUDA_ARCH_LIST to your GPU's
-# compute capability (9.0=H100/H200, 8.9=RTX4090, 8.0=A100).
-export TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST:-9.0}
+# Optional: pin TORCH_CUDA_ARCH_LIST to your GPU's compute capability in
+# env.local.sh to speed up one-time JIT builds (e.g. 8.0 for A100, 9.0 for
+# H100/H200). Left unset, torch detects the visible GPU, which is correct
+# on any homogeneous machine.
 export TI_OFFLINE_CACHE=1
 export TI_OFFLINE_CACHE_FILE_PATH=${TI_OFFLINE_CACHE_FILE_PATH:-$(dirname "${BASH_SOURCE[0]}")/.ti_cache}

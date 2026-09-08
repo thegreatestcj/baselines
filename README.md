@@ -28,6 +28,12 @@ bash gen_tasks.sh > tasks.txt     # 102 tasks: pacnerf(45) gic(45) sgs(12) [neum
 bash run_queue.sh 0,1 2           # GPUs 0 and 1, 2 workers per GPU
 ```
 
+On 40G GPUs (A100-40G) run **1 worker per GPU**; 2 workers per GPU need
+~60G+. Example for a 4-node cluster of 8 GPUs each: on node $i$ of 4, run
+`bash gen_tasks.sh --shard $i/4 > tasks.txt && bash run_queue.sh 0,1,2,3,4,5,6,7 1`;
+the whole public batch then finishes in roughly half a day.
+NeuMA's full-fidelity configs were tuned on 80G GPUs and may not fit in 40G.
+
 Each task = training + rollout + `DONE` marker, 2-4 h on one GPU. The queue
 is resumable (rerun the same command after a crash or Ctrl-C), retries each
 failure once, and logs per-task wall time to `timings.csv` and output to
