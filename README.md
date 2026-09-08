@@ -24,7 +24,7 @@ If your python/CUDA live somewhere unusual, put overrides in `env.local.sh`
 ## Run
 
 ```bash
-bash gen_tasks.sh > tasks.txt     # 102 tasks: pacnerf(45) gic(45) sgs(12) [neuma]
+bash gen_tasks.sh > tasks.txt     # 147 tasks: pacnerf(45) gic(45) masiv(45) sgs(12) [neuma]
 bash run_queue.sh 0,1 2           # GPUs 0 and 1, 2 workers per GPU
 ```
 
@@ -43,15 +43,6 @@ Multi-node, one shard per machine:
 
 ```bash
 bash gen_tasks.sh --shard 0/3 > tasks.txt   # machine 0 of 3; merge results/ after
-```
-
-MASIV batches through its own multi-GPU mode instead of the queue:
-
-```bash
-cd MASIV && torchrun --nproc-per-node=8 run.py train_dynamic \
-  --config_path config/pacnerf --source_path data/PAC-NeRF-Data/data \
-  --model_path output/PAC-NeRF-Output --gt_path data/PAC-NeRF-Data/simulation_data \
-  --reg_scale --reg_alpha env.pretrain=jelly sim.center=2.0 sim.size=4.0 --subfolder
 ```
 
 NeuMA's own benchmark data is not in the data pack yet; fetch it per

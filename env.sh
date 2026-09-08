@@ -29,6 +29,13 @@ export TI_DEVICE_MEMORY_GB=${TI_DEVICE_MEMORY_GB:-16}
 # env.local.sh to speed up one-time JIT builds (e.g. 8.0 for A100, 9.0 for
 # H100/H200). Left unset, torch detects the visible GPU, which is correct
 # on any homogeneous machine.
+# MASIV runs in its own conda env (newer torch/taichi than the main stack).
+if [ -z "${MASIV_PY:-}" ] && command -v conda >/dev/null; then
+  _cand="$(conda info --base 2>/dev/null)/envs/masiv/bin/python"
+  [ -x "$_cand" ] && MASIV_PY=$_cand
+fi
+export MASIV_PY=${MASIV_PY:-}
+
 # Keep CPU thread pools from oversubscribing when several workers share a node.
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
 export MKL_NUM_THREADS=${MKL_NUM_THREADS:-8}

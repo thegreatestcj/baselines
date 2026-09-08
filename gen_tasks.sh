@@ -1,6 +1,6 @@
 #!/bin/bash
 # Generate the task queue for run_queue.sh.
-# Usage: bash gen_tasks.sh [--shard i/N] [pacnerf] [gic] [sgs] [neuma] > tasks.txt
+# Usage: bash gen_tasks.sh [--shard i/N] [pacnerf] [gic] [masiv] [sgs] [neuma] > tasks.txt
 # Each line: <tag>|<workdir>|<done-marker>|<command>
 # Tasks whose done-marker exists are skipped at generation time (and again at
 # run time, so a stale queue is harmless).
@@ -15,7 +15,7 @@ if [ "${1:-}" = "--shard" ]; then
   SHARD_I=${2%%/*}; SHARD_N=${2##*/}; shift 2
 fi
 _emitted=0
-ALL=${@:-pacnerf gic sgs neuma}
+ALL=${@:-pacnerf gic masiv sgs neuma}
 
 emit() { # tag workdir done cmd
   [ -f "$2/$3" ] && return
@@ -47,6 +47,27 @@ if [[ " $ALL " == *" gic "* ]]; then
   for i in {0..4}; do
     gic_task sand "$i" "data/pacnerf/sand_batch/$i" granular
   done
+fi
+
+if [[ " $ALL " == *" masiv "* ]]; then
+  # MASIV upstream's README batch mode (run.py) is not in the released code,
+  # so MASIV batches through this queue like everything else. env.pretrain
+  # follows their documented batch invocation (jelly). Own conda env.
+  source env.sh
+  if [ -x "${MASIV_PY:-}" ]; then
+    masiv_task() { # mat idx datasub gtsub
+      local out="output/pacnerf/$1/$2" src="data/PAC-NeRF-Data/data/$3" gt="data/PAC-NeRF-Data/simulation_data/$4"
+      emit "masiv:$1/$2" "$PWD/MASIV" "$out/DONE" \
+        "$MASIV_PY train_dynamic.py --config_path config/pacnerf/$1/default.yaml --source_path $src --model_path $out --reg_scale --reg_alpha env.pretrain=jelly sim.center=2.0 sim.size=4.0 && $MASIV_PY predict.py --config_path config/pacnerf/$1/default.yaml --source_path $src --model_path $out --gt_path $gt --reg_scale --reg_alpha env.pretrain=jelly sim.center=2.0 sim.size=4.0 --load_iter -1 --iteration 40000 && touch $out/DONE"
+    }
+    for i in {0..9}; do
+      for mat in elastic newtonian non_newtonian; do masiv_task "$mat" "$i" "$mat/$i" "$mat/$i"; done
+      masiv_task plasticine "$i" "plasticine_batch/$i" "plasticine/$i"
+    done
+    for i in {0..4}; do masiv_task sand "$i" "sand_batch/$i" "sand/$i"; done
+  else
+    echo "gen_tasks: masiv env not found (run env/setup_env.sh); skipping masiv tasks" >&2
+  fi
 fi
 
 if [[ " $ALL " == *" neuma "* ]]; then

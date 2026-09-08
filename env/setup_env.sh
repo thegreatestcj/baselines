@@ -32,6 +32,12 @@ $PY -m pip install ninja yacs termcolor gitpython "huggingface_hub[cli]"
 $PY -m pip install env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
 $PY -m pip install Spring-Gaus/submodules/diff-gaussian-rasterization
 
+# --- MASIV env (python 3.10 + newer torch/taichi; own spec) ---
+MPY="$(conda info --base)/envs/masiv/bin/python"
+if [ ! -x "$MPY" ]; then
+  conda env create -n masiv -f MASIV/environment.yml
+fi
+
 # --- NeuMA venv (needs old warp-lang 0.6.1, incompatible with main env) ---
 if [ ! -x NeuMA/.venv/bin/python ]; then
   $PY -m venv --system-site-packages NeuMA/.venv
