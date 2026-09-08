@@ -21,7 +21,7 @@ export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}
 export PATH=$CUDA_HOME/bin:$PATH
 
 # taichi preallocation cap in GB. The upstream repos preallocate a FRACTION
-# of total GPU memory, which OOMs on large shared GPUs — 20G is plenty for
+# of total GPU memory, which OOMs on large shared GPUs — 16G is plenty for
 # every scene in the benchmarks.
 export TI_DEVICE_MEMORY_GB=${TI_DEVICE_MEMORY_GB:-16}
 
