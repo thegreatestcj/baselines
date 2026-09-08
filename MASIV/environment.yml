@@ -13,17 +13,16 @@ dependencies:
       - imageio
       - imageio-ffmpeg
       - lpips
-      - mmcv
       - ninja
       - open3d
       - opencv-python
       - plyfile
       - scipy
-      - taichi
+      - taichi==1.7.4
       - tqdm
       - trimesh
       - einops
-      - kornia
+      - kornia==0.8.2
       - omegaconf
-      - warp-lang
+      - warp-lang==1.7.2
 
