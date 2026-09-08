@@ -37,6 +37,13 @@ MPY="$(conda info --base)/envs/masiv/bin/python"
 if [ ! -x "$MPY" ]; then
   conda env create -n masiv -f MASIV/environment.yml
 fi
+# same vendored (header-patched) CUDA deps as the main env
+$MPY -m pip install env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
+# deps whose builds need torch visible (pip build isolation hides it):
+# torch-scatter from the prebuilt PyG wheel index, pytorch3d without isolation
+_TV=$($MPY -c "import torch; print(torch.__version__)")
+$MPY -m pip install torch-scatter -f "https://data.pyg.org/whl/torch-${_TV}.html"
+$MPY -m pip install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git"
 
 # --- NeuMA venv (needs old warp-lang 0.6.1, incompatible with main env) ---
 if [ ! -x NeuMA/.venv/bin/python ]; then
