@@ -29,5 +29,9 @@ export TI_DEVICE_MEMORY_GB=${TI_DEVICE_MEMORY_GB:-16}
 # env.local.sh to speed up one-time JIT builds (e.g. 8.0 for A100, 9.0 for
 # H100/H200). Left unset, torch detects the visible GPU, which is correct
 # on any homogeneous machine.
+# Keep CPU thread pools from oversubscribing when several workers share a node.
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
+export MKL_NUM_THREADS=${MKL_NUM_THREADS:-8}
+
 export TI_OFFLINE_CACHE=1
 export TI_OFFLINE_CACHE_FILE_PATH=${TI_OFFLINE_CACHE_FILE_PATH:-$(dirname "${BASH_SOURCE[0]}")/.ti_cache}

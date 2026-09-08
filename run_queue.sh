@@ -75,7 +75,7 @@ i=0
 IFS=',' read -ra G <<< "$GPUS"
 for gpu in "${G[@]}"; do
   for w in $(seq 1 "$PER"); do
-    sleep $((i*45)) && worker "$gpu" "$w" &
+    sleep $(( (i<4 ? i : 4) * 45 )) && worker "$gpu" "$w" &
     i=$((i+1))
   done
 done
