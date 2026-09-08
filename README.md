@@ -32,6 +32,9 @@ On 40G GPUs (A100-40G) run **1 worker per GPU**; 2 workers per GPU need
 ~60G+. Example for a 4-node cluster of 8 GPUs each: on node $i$ of 4, run
 `bash gen_tasks.sh --shard $i/4 > tasks.txt && bash run_queue.sh 0,1,2,3,4,5,6,7 1`;
 the whole public batch then finishes in roughly half a day.
+Any subset of GPUs works: the queue only touches the cards you list, and
+rerunning the same command later resumes where it left off (finished tasks
+are skipped), so partial or changing allocations are fine.
 NeuMA's full-fidelity configs were tuned on 80G GPUs and may not fit in 40G.
 
 Each task = training + rollout + `DONE` marker, 2-4 h on one GPU. The queue
