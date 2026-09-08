@@ -41,8 +41,10 @@ fi
 $MPY -m pip install --no-build-isolation env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
 # deps whose builds need torch visible (pip build isolation hides it):
 # torch-scatter from the prebuilt PyG wheel index, pytorch3d without isolation
-_TV=$($MPY -c "import torch; print(torch.__version__)")
-$MPY -m pip install torch-scatter -f "https://data.pyg.org/whl/torch-${_TV}.html"
+_TV=$($MPY -c "import torch; print(torch.__version__.split('+')[0])")
+_CU=$($MPY -c "import torch; print('cu'+torch.version.cuda.replace('.',''))")
+$MPY -m pip install torch-scatter -f "https://data.pyg.org/whl/torch-${_TV}+${_CU}.html" \
+  || $MPY -m pip install --no-build-isolation torch-scatter
 $MPY -m pip install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git"
 
 # --- NeuMA venv (needs old warp-lang 0.6.1, incompatible with main env) ---
