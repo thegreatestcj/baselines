@@ -3,12 +3,8 @@
 Self-contained codebase for running the system-identification baselines
 (PAC-NeRF, GIC, MASIV, NeuMA, Spring-Gaus) and evaluating them with a unified
 protocol. No external repos or data needed beyond the steps below.
+All external data in https://huggingface.co/datasets/HoneyLane/gic-baselines-data. Setup scripts below.
 
-## Requirements
-
-- Linux, NVIDIA GPU (>=24G), CUDA 12.x toolkit with `nvcc`, conda.
-- A HuggingFace account with read access to `HoneyLane/gic-baselines-data`
-  (ask the maintainer).
 
 ## Setup (once)
 
@@ -18,8 +14,6 @@ hf auth login             # token with read access to the data repo
 bash setup_data.sh        # ~12G download, unpacks and wires all symlinks
 ```
 
-If your python/CUDA live somewhere unusual, put overrides in `env.local.sh`
-(see `env.sh` for the variables); everything else stays untouched.
 
 ## Run
 
