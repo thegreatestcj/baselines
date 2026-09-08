@@ -29,8 +29,8 @@ $PY -m pip install ninja yacs termcolor gitpython "huggingface_hub[cli]"
 # (unpatchable as git+ installs). Two rasterizers coexist under different
 # module names: GIC imports diff_gauss (jukgei fork), Spring-Gaus imports
 # diff_gaussian_rasterization (its own submodule).
-$PY -m pip install env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
-$PY -m pip install Spring-Gaus/submodules/diff-gaussian-rasterization
+$PY -m pip install --no-build-isolation env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
+$PY -m pip install --no-build-isolation Spring-Gaus/submodules/diff-gaussian-rasterization
 
 # --- MASIV env (python 3.10 + newer torch/taichi; own spec) ---
 MPY="$(conda info --base)/envs/masiv/bin/python"
@@ -38,7 +38,7 @@ if [ ! -x "$MPY" ]; then
   conda env create -n masiv -f MASIV/environment.yml
 fi
 # same vendored (header-patched) CUDA deps as the main env
-$MPY -m pip install env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
+$MPY -m pip install --no-build-isolation env/third_party/diff-gaussian-rasterization env/third_party/simple-knn
 # deps whose builds need torch visible (pip build isolation hides it):
 # torch-scatter from the prebuilt PyG wheel index, pytorch3d without isolation
 _TV=$($MPY -c "import torch; print(torch.__version__)")
@@ -52,6 +52,6 @@ fi
 NeuMA/.venv/bin/pip install warp-lang==0.6.1 e3nn==0.5.1 viser==0.2.3 \
   nerfview==0.0.3 pyvista==0.44.0 splines==0.3.2 natsort torchmetrics \
   tensorboardX mediapy omegaconf==2.3.0 py7zr
-( cd NeuMA/extern/diff-gaussian-rasterization && ../../.venv/bin/pip install . )
+( cd NeuMA/extern/diff-gaussian-rasterization && ../../.venv/bin/pip install --no-build-isolation . )
 
 echo "Envs ready. Now: bash setup_data.sh"
