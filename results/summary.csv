@@ -1,0 +1,3 @@
+method,group,window,n_scenes,cd,emd
+pacnerf,all,future,1,0.9480,0.0877
+pacnerf,all,observable,1,0.0446,0.0330
