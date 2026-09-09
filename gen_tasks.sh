@@ -18,7 +18,7 @@ _emitted=0
 # No default: public-benchmark baseline numbers are QUOTED in the paper
 # (yi2025masiv); these groups exist for optional verification runs only.
 # The required batch is the our-dataset group (pending the data converter).
-[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|sgs_elastic ..." >&2; exit 1; }
+[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45 ..." >&2; exit 1; }
 ALL="$@"
 
 emit() { # tag workdir done cmd

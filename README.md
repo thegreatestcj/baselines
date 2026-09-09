@@ -18,10 +18,9 @@ bash setup_data.sh        # ~12G download, unpacks and wires all symlinks
 ## Run
 
 Most public-benchmark baseline numbers are quoted from published results.
-Required runs: `gic` (45; also the recon prerequisite for NeuMA), the
-NeuMA-on-PAC-NeRF and Spring-Gaus-elastic groups (converters in
-preparation), and later the our-dataset group. `pacnerf`/`masiv`/`sgs`
-groups are optional verification only.
+Required runs: `gic` (45; also the recon prerequisite for NeuMA), then
+`neuma45` (regenerate tasks after gic finishes), and later the our-dataset
+group. `pacnerf`/`masiv`/`sgs` groups are optional verification only.
 
 ```bash
 bash gen_tasks.sh gic > tasks.txt        # required now (45 tasks)
