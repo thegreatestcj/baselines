@@ -21,15 +21,24 @@ def load_points(ply_path):
     return np.stack([v["x"], v["y"], v["z"]], axis=1).astype(np.float64)
 
 
-def chamfer_sq_mm2(a, b):
-    """Bidirectional mean squared NN distance, input meters -> 10^3 mm^2."""
+def chamfer_sq_mm2(a, b, samples=8192, seed=0):
+    """Bidirectional mean squared NN distance in 10^3 mm^2 (input meters).
+    Both clouds are randomly subsampled to `samples` points first — this is
+    the published convention (Spring-Gaus eval, inherited by MASIV's
+    predict.py: 8192 for CD, x1e3 on pytorch3d chamfer), and CD values are
+    only comparable at matched sample counts."""
+    rng = np.random.default_rng(seed)
+    if len(a) > samples:
+        a = a[rng.choice(len(a), samples, replace=False)]
+    if len(b) > samples:
+        b = b[rng.choice(len(b), samples, replace=False)]
     da = cKDTree(b).query(a, k=1)[0]
     db = cKDTree(a).query(b, k=1)[0]
     cd_m2 = (da ** 2).mean() + (db ** 2).mean()
     return cd_m2 * 1e6 / 1e3  # m^2 -> mm^2, then report in 10^3 mm^2
 
 
-def emd_m(a, b, samples=1024, seed=0):
+def emd_m(a, b, samples=2048, seed=0):
     """Exact-assignment EMD on subsampled clouds, meters."""
     rng = np.random.default_rng(seed)
     a = a[rng.choice(len(a), min(samples, len(a)), replace=False)]
@@ -63,7 +72,7 @@ def lpips_fn(pred_img, gt_img, device="cuda"):
         return float(_lpips_model(to_t(pred_img), to_t(gt_img)).item())
 
 
-def eval_particle_sequence(pred_plys, gt_plys, split=None, emd_samples=1024):
+def eval_particle_sequence(pred_plys, gt_plys, split=None, emd_samples=2048):
     """pred_plys/gt_plys: index-aligned lists of ply paths.
     Returns per-frame and windowed means; `split` = first future frame index."""
     n = min(len(pred_plys), len(gt_plys))

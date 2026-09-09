@@ -35,7 +35,7 @@ def main():
     ap.add_argument("--gt_frames", help="glob for GT frames (same view)")
     ap.add_argument("--split", type=int, default=None,
                     help="index of first future frame; omit for single-window eval")
-    ap.add_argument("--emd_samples", type=int, default=1024)
+    ap.add_argument("--emd_samples", type=int, default=2048)
     ap.add_argument("--no_lpips", action="store_true")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--out", required=True, help="output json path")

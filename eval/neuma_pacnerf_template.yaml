@@ -1,0 +1,120 @@
+# NeuMA finetune config template for PAC-NeRF scenes.
+# Filled and written to NeuMA/experiments/configs/pacnerf/<name>.yaml by
+# eval/convert_pacnerf_to_neuma.py -- do not edit generated copies, edit this.
+# All paths are relative to the NeuMA repo root (run from there).
+gpu: 0
+seed: 42
+debug: true
+debug_views: ['{debug_view}']
+resume: {resume}
+overwrite: false
+
+root: experiments/logs
+sim_data_name: {name}       # assets folder name
+name: {exp_name}            # logs folder name
+pretrained_ckpt: {pretrained_ckpt}
+
+gaussian:
+  sh_degree: 3
+  opacity_thres: 0.02
+  confidence: 0.95
+  max_particles: 10
+  kernels_path: experiments/assets/{name}/kernels.ply
+
+video_data:
+  eval: false
+  camera_type: NeuMASynthetic
+  data:
+    path: data/PACNeRF/{name}
+    transformsfile: data_dynamic.json
+    white_background: true
+    exclude_steps:
+    - -1
+    used_views: null          # load every training view
+  camera:
+    resolution: 1
+    data_device: cpu
+
+sim:
+  gravity:
+  - {gravity_x}
+  - {gravity_y}
+  - {gravity_z}
+  bc: {bc}
+  num_grids: 32
+  dt: {dt}                    # frame_dt (1/fps) / substeps, in sim (unit-cube) space
+  bound: 1
+  eps: 0.0
+  skip_frame: 1
+
+particle_data:
+  shape:
+    asset_root: null
+    sort: null
+    ori_bounds:               # world-space cube mapped to the unit sim cube
+    - [{ori_min_x}, {ori_min_y}, {ori_min_z}]
+    - [{ori_max_x}, {ori_max_y}, {ori_max_z}]
+    sim_bounds:
+    - [0., 0., 0.]
+    - [1., 1., 1.]
+  rho: {rho}
+  clip_bound: 0.1
+  particles_path: experiments/assets/{name}/particles_src.ply
+  downsample_factor: 1        # particles_src.ply is already downsampled by the converter
+
+constitution:
+  elasticity:
+    layer_widths:
+    - 64
+    - 64
+    norm: null
+    nonlinearity: gelu
+    no_bias: true
+    normalize_input: true
+  elasticity_lr: 0.008
+  elasticity_wd: 0.0
+  elasticity_grad_max_norm: 1.0
+  elasticity_scheduler:
+    type: cos
+    max_steps: {const_epochs}
+    learning_rate_alpha: 0.025
+  plasticity:
+    layer_widths:
+    - 64
+    - 64
+    norm: null
+    alpha: 0.001
+    nonlinearity: gelu
+    no_bias: true
+    normalize_input: true
+  plasticity_lr: 0.0008
+  plasticity_wd: 0.0
+  plasticity_grad_max_norm: 1.0
+  plasticity_scheduler:
+    type: cos
+    max_steps: {const_epochs}
+    learning_rate_alpha: 0.025
+  warmup_step: 0
+  decay_init: 0.5
+  decay_final: 1.0
+  decay_steps: 80
+  lambda_max_decay: 0.33
+  lora:
+    r: 16
+    alpha: 16
+  num_epochs: {const_epochs}
+  substeps: {substeps}
+  num_frames: {num_frames}
+  views: all
+
+velocity:
+  num_epochs: {vel_epochs}
+  num_frames: {vel_frames}
+  substeps: {substeps}
+  lambda_reg: 0.005
+  views: all
+  lr: 1.0
+  scheduler:
+    type: cos
+    max_steps: {vel_epochs}
+    learning_rate_alpha: 0.01

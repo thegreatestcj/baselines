@@ -17,9 +17,15 @@ bash setup_data.sh        # ~12G download, unpacks and wires all symlinks
 
 ## Run
 
+Most public-benchmark baseline numbers are quoted from published results.
+Required runs: `gic` (45; also the recon prerequisite for NeuMA), the
+NeuMA-on-PAC-NeRF and Spring-Gaus-elastic groups (converters in
+preparation), and later the our-dataset group. `pacnerf`/`masiv`/`sgs`
+groups are optional verification only.
+
 ```bash
-bash gen_tasks.sh > tasks.txt     # 147 tasks: pacnerf(45) gic(45) masiv(45) sgs(12) [neuma]
-bash run_queue.sh 0,1 2           # GPUs 0 and 1, 2 workers per GPU
+bash gen_tasks.sh gic > tasks.txt        # required now (45 tasks)
+bash run_queue.sh 0,1 2                  # GPUs 0 and 1, 2 workers per GPU
 ```
 
 On 40G GPUs (A100-40G) run **1 worker per GPU**; 2 workers per GPU need
