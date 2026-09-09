@@ -18,7 +18,7 @@ _emitted=0
 # No default: public-benchmark baseline numbers are QUOTED in the paper
 # (yi2025masiv); these groups exist for optional verification runs only.
 # The required batch is the our-dataset group (pending the data converter).
-[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma ..." >&2; exit 1; }
+[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|sgs_elastic ..." >&2; exit 1; }
 ALL="$@"
 
 emit() { # tag workdir done cmd
@@ -74,6 +74,26 @@ if [[ " $ALL " == *" masiv "* ]]; then
   fi
 fi
 
+if [[ " $ALL " == *" neuma45 "* ]]; then
+  # NeuMA on the 45 PAC-NeRF sequences (no published numbers exist).
+  # Each task: convert (needs the scene's finished GIC recon) -> full-config
+  # finetune -> future rollout. Emitted only for scenes whose gic task is
+  # DONE; rerun gen_tasks.sh after the gic group finishes to pick up more.
+  neuma45_task() { # mat idx datasub
+    local gicout="GIC/output/pacnerf/$1/$2" name="$1_$2"
+    local prior=jelly
+    case "$1" in plasticine) prior=plasticine;; sand) prior=sand;; esac
+    [ -f "$gicout/DONE" ] || return 0
+    emit "neuma45:$1/$2" "$PWD" "NeuMA/experiments/logs/DONE_$name" \
+      "NeuMA/.venv/bin/python eval/convert_pacnerf_to_neuma.py --scene_data GIC/data/pacnerf/$3 --gic_out $gicout --gic_cfg GIC/config/pacnerf/$1/default.json --out_name $name --pretrained_ckpt experiments/base_models/${prior}_0300.pt && cd NeuMA && PYTHONPATH=. .venv/bin/python experiments/finetune.py -c experiments/configs/pacnerf/$name.yaml && PYTHONPATH=. .venv/bin/python experiments/render.py -c experiments/configs/pacnerf/$name.yaml --eval_steps 16 --transform_file eval_dynamic.json --load_lora 1000_lora.pt --video_name batch --skip_frames 1 --init_frame 0 && cd .. && touch NeuMA/experiments/logs/DONE_$name"
+  }
+  for i in {0..9}; do
+    for mat in elastic newtonian non_newtonian; do neuma45_task "$mat" "$i" "$mat/$i"; done
+    neuma45_task plasticine "$i" "plasticine_batch/$i"
+  done
+  for i in {0..4}; do neuma45_task sand "$i" "sand_batch/$i"; done
+fi
+
 if [[ " $ALL " == *" neuma "* ]]; then
   # NeuMA runs its own synthetic benchmark (BouncyBall etc.). Uses its venv
   # interpreter directly, so run_queue's interpreter substitution skips it.
@@ -85,6 +105,16 @@ if [[ " $ALL " == *" neuma "* ]]; then
     [ -d "NeuMA/$datadir" ] || continue  # data not fetched yet
     emit "neuma:$name" "$PWD/NeuMA" "experiments/logs/DONE_$name" \
       "PYTHONPATH=. .venv/bin/python experiments/finetune.py -c experiments/configs/synthetic/finetune-$name.yaml && PYTHONPATH=. .venv/bin/python experiments/render.py -c experiments/configs/synthetic/finetune-$name.yaml --eval_steps 400 --transform_file eval_dynamic.json --load_lora 1000_lora.pt --video_name batch --debug_views e_2 --skip_frames 5 --init_frame 0 && touch experiments/logs/DONE_$name"
+  done
+fi
+
+if [[ " $ALL " == *" sgs_elastic "* ]]; then
+  # Spring-Gaus on the 10 PAC-NeRF elastic scenes. The data converter is cheap
+  # and idempotent, so it runs inline before each training job; it also writes
+  # config/pacnerf_elastic/pacnerf_$i.yaml from eval/springgaus_pacnerf_template.yaml.
+  for i in {0..9}; do
+    emit "sgs:elastic/$i" "$PWD/Spring-Gaus" "checkpoints/pacnerf_$i/DONE" \
+      "python ../eval/convert_pacnerf_to_springgaus.py --scene_data ../GIC/data/pacnerf/elastic/$i --gt ../MASIV/data/PAC-NeRF-Data/simulation_data/elastic/$i --out_name pacnerf_$i && python train.py -g 0 --cfg config/pacnerf_elastic/pacnerf_$i.yaml --eval_cam 5 --exp_id batch_pacnerf_$i && touch checkpoints/pacnerf_$i/DONE"
   done
 fi
 
