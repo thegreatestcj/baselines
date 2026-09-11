@@ -16,8 +16,11 @@ bash gen_tasks.sh vid2sim_gso > tasks.txt  # 12 GSO cases (~20 min each)
 bash run_queue.sh 0,1,2,3,4,5,6,7 1        # the GPUs you were given, 1 worker/GPU
 ```
 
-`vid2sim_pacnerf` (10 elastic scenes) and `vid2sim_sg` (7 scenes) task groups
-land with the benchmark adapters; regenerate tasks to pick them up.
+`vid2sim_pacnerf` (10 PAC-NeRF elastic scenes) and `vid2sim_sg` (7 Spring-Gaus
+scenes) run the benchmark adapters (`eval/convert_*_to_vid2sim.py`, inline in
+each task) plus the future-window driver `eval/vid2sim_future.py`, which also
+works on finished GSO cases (renders steps 16-23, per-window PSNR/SSIM,
+per-step point clouds for `eval/eval_scene.py`).
 Set `BASELINES_PY` to the vid2sim venv python in `env.local.sh` if you skip
 the full env and still want `eval/`.
 

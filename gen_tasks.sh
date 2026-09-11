@@ -18,7 +18,7 @@ _emitted=0
 # No default: public-benchmark baseline numbers are QUOTED in the paper
 # (yi2025masiv); these groups exist for optional verification runs only.
 # The required batch is the our-dataset group (pending the data converter).
-[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|vid2sim_gso ..." >&2; exit 1; }
+[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|vid2sim_gso|vid2sim_pacnerf|vid2sim_sg ..." >&2; exit 1; }
 ALL="$@"
 
 emit() { # tag workdir done cmd
@@ -86,6 +86,45 @@ if [[ " $ALL " == *" vid2sim_gso "* ]]; then
     done
   else
     echo "gen_tasks: vid2sim env not found (run env/setup_env.sh); skipping vid2sim tasks" >&2
+  fi
+fi
+
+if [[ " $ALL " == *" vid2sim_pacnerf "* ]]; then
+  # Vid2Sim on the 10 PAC-NeRF elastic scenes. The converter is cheap and
+  # idempotent, so it runs inline before each job; then the full pipeline
+  # and the future driver (14 real frames -> replay 0..13 scored, sim rolled
+  # to step 15 so sim_points/ plys line up with the GT particle sequences
+  # for eval/eval_scene.py).
+  source env.sh
+  if [ -x "${VID2SIM_PY:-}" ]; then
+    vid2sim_pacnerf_task() { # idx
+      local n="elastic_$1"
+      emit "vid2sim:elastic/$1" "$PWD/Vid2Sim" "outputs/$n/DONE" \
+        "$VID2SIM_PY ../eval/convert_pacnerf_to_vid2sim.py --scene_data ../GIC/data/pacnerf/elastic/$1 --gic_cfg ../GIC/config/pacnerf/elastic/default.json --out_name $n && $VID2SIM_PY run_pipeline.py --config config/pacnerf/$n.yaml --dataset_dir dataset/PACNeRF --data_name $n && $VID2SIM_PY ../eval/vid2sim_future.py --config config/pacnerf/$n.yaml --dataset_dir dataset/PACNeRF --data_name $n --split 14 --total_frames 14 && touch outputs/$n/DONE"
+    }
+    for i in {0..9}; do vid2sim_pacnerf_task "$i"; done
+  else
+    echo "gen_tasks: vid2sim env not found (run env/setup_env.sh); skipping vid2sim_pacnerf tasks" >&2
+  fi
+fi
+
+if [[ " $ALL " == *" vid2sim_sg "* ]]; then
+  # Vid2Sim on the 7 Spring-Gaus mpm_synthetic scenes (MASIV comparison
+  # set). Same shape as vid2sim_pacnerf; 30 frames = observed 20 + future
+  # 10, so the driver scores replay 0..19 and future 20..29 (GT particle
+  # plys for CD live in Spring-Gaus/data/mpm_synthetic/simulation/<scene>).
+  # Case names carry an sg_ prefix so outputs/ can't collide with the GSO
+  # cream case.
+  source env.sh
+  if [ -x "${VID2SIM_PY:-}" ]; then
+    vid2sim_sg_task() { # scene
+      local n="sg_$1"
+      emit "vid2sim:sg/$1" "$PWD/Vid2Sim" "outputs/$n/DONE" \
+        "$VID2SIM_PY ../eval/convert_springgaus_to_vid2sim.py --scene_data ../Spring-Gaus/data/mpm_synthetic/render/$1 --sg_cfg ../Spring-Gaus/config/mpm_synthetic/$1.yaml --out_name $n && $VID2SIM_PY run_pipeline.py --config config/springgaus/$n.yaml --dataset_dir dataset/SpringGaus --data_name $n && $VID2SIM_PY ../eval/vid2sim_future.py --config config/springgaus/$n.yaml --dataset_dir dataset/SpringGaus --data_name $n --split 20 --total_frames 30 && touch outputs/$n/DONE"
+    }
+    for s in torus cross cream apple toothpaste chess banana; do vid2sim_sg_task "$s"; done
+  else
+    echo "gen_tasks: vid2sim env not found (run env/setup_env.sh); skipping vid2sim_sg tasks" >&2
   fi
 fi
 

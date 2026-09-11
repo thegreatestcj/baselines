@@ -4,4 +4,8 @@ dataset/objaverse
 
 checkpoints/
 outputs/
+dataset/SpringGaus
+config/pacnerf/
+config/springgaus/
 debug/
+dataset/PACNeRF
