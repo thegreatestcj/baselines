@@ -6,7 +6,22 @@ protocol. No external repos or data needed beyond the steps below.
 All external data in https://huggingface.co/datasets/HoneyLane/gic-baselines-data. Setup scripts below.
 
 
-## Setup (once)
+## Vid2Sim-only quickstart (for the current handoff)
+
+```bash
+bash env/setup_env.sh vid2sim              # masiv base env + vid2sim venv only
+hf auth login                              # token with read access to the data repo
+bash setup_data.sh                         # downloads incl. Vid2Sim ckpts + GSO
+bash gen_tasks.sh vid2sim_gso > tasks.txt  # 12 GSO cases (~20 min each)
+bash run_queue.sh 0,1,2,3,4,5,6,7 1        # the GPUs you were given, 1 worker/GPU
+```
+
+`vid2sim_pacnerf` (10 elastic scenes) and `vid2sim_sg` (7 scenes) task groups
+land with the benchmark adapters; regenerate tasks to pick them up.
+Set `BASELINES_PY` to the vid2sim venv python in `env.local.sh` if you skip
+the full env and still want `eval/`.
+
+## Setup (once, everything)
 
 ```bash
 bash env/setup_env.sh     # conda env "baselines" + NeuMA venv + CUDA builds
