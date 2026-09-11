@@ -36,6 +36,15 @@ if [ -z "${MASIV_PY:-}" ] && command -v conda >/dev/null; then
 fi
 export MASIV_PY=${MASIV_PY:-}
 
+# Vid2Sim runs in its own venv layered over the masiv env (see
+# env/setup_env.sh). Override VID2SIM_PY in env.local.sh if the venv lives
+# elsewhere (e.g. outside the conda envs dir on scratch storage).
+if [ -z "${VID2SIM_PY:-}" ] && command -v conda >/dev/null; then
+  _cand="$(conda info --base 2>/dev/null)/envs/vid2sim/bin/python"
+  [ -x "$_cand" ] && VID2SIM_PY=$_cand
+fi
+export VID2SIM_PY=${VID2SIM_PY:-}
+
 # Keep CPU thread pools from oversubscribing when several workers share a node.
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
 export MKL_NUM_THREADS=${MKL_NUM_THREADS:-8}

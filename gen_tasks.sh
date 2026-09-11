@@ -18,7 +18,7 @@ _emitted=0
 # No default: public-benchmark baseline numbers are QUOTED in the paper
 # (yi2025masiv); these groups exist for optional verification runs only.
 # The required batch is the our-dataset group (pending the data converter).
-[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45 ..." >&2; exit 1; }
+[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|vid2sim_gso ..." >&2; exit 1; }
 ALL="$@"
 
 emit() { # tag workdir done cmd
@@ -71,6 +71,21 @@ if [[ " $ALL " == *" masiv "* ]]; then
     for i in {0..4}; do masiv_task sand "$i" "sand_batch/$i" "sand/$i"; done
   else
     echo "gen_tasks: masiv env not found (run env/setup_env.sh); skipping masiv tasks" >&2
+  fi
+fi
+
+if [[ " $ALL " == *" vid2sim_gso "* ]]; then
+  # Vid2Sim on its 12-case GSO test set. Full pipeline per case (Stage I
+  # predictor + LGM, Stage II 3DGS/LBS refine + joint opt, ~1.5-3h each).
+  # Own venv (see env/setup_env.sh); gated on it like masiv.
+  source env.sh
+  if [ -x "${VID2SIM_PY:-}" ]; then
+    for s in backpack bell blocks bus cream elephant grandfather leather lion mario sofa turtle; do
+      emit "vid2sim:$s" "$PWD/Vid2Sim" "outputs/$s/DONE" \
+        "$VID2SIM_PY run_pipeline.py --data_name $s && touch outputs/$s/DONE"
+    done
+  else
+    echo "gen_tasks: vid2sim env not found (run env/setup_env.sh); skipping vid2sim tasks" >&2
   fi
 fi
 

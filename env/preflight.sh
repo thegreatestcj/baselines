@@ -17,6 +17,9 @@ chk springgaus Spring-Gaus "$BASELINES_PY" "import yacs, termcolor, git, cv2, lp
 if [ -x "${MASIV_PY:-}" ]; then
   chk masiv MASIV "$MASIV_PY" "import taichi, torch, kornia, warp, diff_gauss; from simple_knn import _C"
 else echo "SKIP masiv (env not created)"; fail=1; fi
+if [ -x "${VID2SIM_PY:-}" ]; then
+  chk vid2sim Vid2Sim "$VID2SIM_PY" "import kaolin, pyg_lib, torch_cluster, transformers; from diff_gaussian_rasterization import GaussianRasterizationSettings"
+else echo "SKIP vid2sim (venv not created)"; fi
 if [ -x NeuMA/.venv/bin/python ]; then
   chk neuma NeuMA .venv/bin/python "import warp, e3nn, torch; import diff_gaussian_rasterization"
 else echo "SKIP neuma (venv not created)"; fi

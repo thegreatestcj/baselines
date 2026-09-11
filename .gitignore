@@ -41,3 +41,6 @@ env.local.sh
 MASIV/output/
 MASIV/pretrained/
 MASIV/*.log
+Vid2Sim/dataset/GSO
+Vid2Sim/checkpoints
+Vid2Sim/outputs/

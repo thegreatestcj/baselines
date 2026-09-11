@@ -33,6 +33,12 @@ fi
 if [ ! -d "$STORE/spring_gaus" ] && [ -f "$STORE/spring_gaus.tar" ]; then
   tar xf "$STORE/spring_gaus.tar" -C "$STORE" && rm -f "$STORE/spring_gaus.tar"
 fi
+if [ ! -d "$STORE/vid2sim/checkpoints" ] && [ -f "$STORE/vid2sim_ckpts.tar" ]; then
+  tar xf "$STORE/vid2sim_ckpts.tar" -C "$STORE" && rm -f "$STORE/vid2sim_ckpts.tar"
+fi
+if [ ! -d "$STORE/vid2sim/dataset" ] && [ -f "$STORE/vid2sim_gso.tar" ]; then
+  tar xf "$STORE/vid2sim_gso.tar" -C "$STORE" && rm -f "$STORE/vid2sim_gso.tar"
+fi
 
 link () { mkdir -p "$(dirname "$2")"; ln -sfn "$1" "$2"; }
 
@@ -54,6 +60,11 @@ link "$STORE/spring_gaus"                   MASIV/data/Spring-Gaus
 
 # Spring-Gaus
 link "$STORE/spring_gaus"                   Spring-Gaus/data
+
+# Vid2Sim: pretrained ckpts + GSO test set (12 cases). dataset/ itself is
+# vendored (holds a README), so only the GSO subdir is linked.
+link "$STORE/vid2sim/checkpoints"           Vid2Sim/checkpoints
+link "$STORE/vid2sim/dataset/GSO"           Vid2Sim/dataset/GSO
 
 # NeuMA: TODO once its setup lands
 

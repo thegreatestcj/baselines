@@ -10,6 +10,7 @@ Local modifications are committed on top; diff against the commits below to see 
 | Spring-Gaus/ | https://github.com/Colmar-zlicheng/Spring-Gaus.git (+submodules) | 62a1bb5dbe83fe4396efa7048d3226754ac8fe1d |
 | MASIV/ | https://github.com/Skaldak/MASIV.git | f05ff17 (vendored with velocity/constitution smoke validated) |
 | NeuMA/ | https://github.com/XJay18/NeuMA.git | (cloned 2026-09-02; extern rasterizer pinned 59f5f77e) |
+| Vid2Sim/ | https://github.com/CzzzzH/Vid2Sim.git | 8fbb26d7e16ca03b5322e490c7a8d422f70c2e57 |
 
 ## Local modifications so far
 
@@ -20,3 +21,5 @@ Local modifications are committed on top; diff against the commits below to see 
   installed diff_gaussian_rasterization; unpack with `*_`.
 - Spring-Gaus/train.py — `torch.backends.cuda.preferred_linalg_library("magma")`
   (cusolverDnCreate fails on some shared GPUs).
+- Vid2Sim/gs/submodules/diff-gaussian-rasterization/cuda_rasterizer/rasterizer_impl.h
+  — added `#include <cstdint>` / `#include <cstdio>` (newer gcc fix).

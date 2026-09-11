@@ -1,0 +1,7 @@
+__pycache__
+dataset/GSO
+dataset/objaverse
+
+checkpoints/
+outputs/
+debug/

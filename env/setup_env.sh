@@ -56,4 +56,28 @@ NeuMA/.venv/bin/pip install warp-lang==0.6.1 e3nn==0.5.1 viser==0.2.3 \
   tensorboardX mediapy omegaconf==2.3.0 py7zr
 ( cd NeuMA/extern/diff-gaussian-rasterization && ../../.venv/bin/pip install --no-build-isolation . )
 
+# --- Vid2Sim venv (layered over the masiv env: torch 2.4.1+cu124, diff_gauss,
+# simple_knn, warp, numpy 1.26.4 come from there via --system-site-packages) ---
+VPY="${VID2SIM_PY:-$(conda info --base)/envs/vid2sim/bin/python}"
+if [ ! -x "$VPY" ]; then
+  "$MPY" -m venv --system-site-packages "$(dirname "$(dirname "$VPY")")"
+fi
+VPIP="$(dirname "$VPY")/pip"
+# kaolin from the official wheel index matching the masiv torch build
+_TV=$($MPY -c "import torch; print(torch.__version__.split('+')[0])")
+_CU=$($MPY -c "import torch; print('cu'+torch.version.cuda.replace('.',''))")
+"$VPIP" install kaolin==0.17.0 \
+  -f "https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-${_TV}_${_CU}.html"
+# pyg-lib is REQUIRED (torch_geometric.nn.pool.fps dies without it in Stage II)
+"$VPIP" install torch-cluster pyg-lib \
+  -f "https://data.pyg.org/whl/torch-${_TV%.*}.0+${_CU}.html"
+# kiui pinned to 0.2.14: 0.3.x ships a broken typing.py that shadows stdlib.
+# torch_geometric pinned to 2.6.1: 2.8+ requires pyg-lib>=0.6.0 for fps, but
+# the cu124 wheel index tops out at 0.4.0; 2.6.x falls back to torch-cluster.
+"$VPIP" install transformers==4.47.0 torch_geometric==2.6.1 torchmetrics tyro \
+  kiui==0.2.14 roma easydict safetensors pygltflib usd-core gdown
+# LGM's rasterizer (vendored with the cstdint/cstdio header fix for newer gcc)
+( cd Vid2Sim/gs/submodules/diff-gaussian-rasterization && \
+  "$VPIP" install --no-build-isolation . )
+
 echo "Envs ready. Now: bash setup_data.sh"
