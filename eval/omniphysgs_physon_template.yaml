@@ -1,0 +1,136 @@
+# OmniPhysGS on PhysON — per-scene config template.
+#
+# eval/convert_physon_to_omniphysgs.py fills every double-brace token from the scene data and writes the
+# result to OmniPhysGS/data/PhysON/<subset>/<scene>/config.yaml (the "package"). Everything
+# else is a default that can be overridden on the fit.py command line as OmegaConf dotlist
+# entries (e.g. `train.epochs=1 sim.force_mode=none material.elasticity_physicals=[CorotatedElasticity]`).
+#
+# Units: `world` = dataset metres/seconds; `sim` = the MPM unit cube [0,1]^3 with the same clock.
+# fit.py maps x_sim = (x_world - box_center) * s + 0.5 and converts every physical quantity
+# itself: gravity/accelerations/velocities scale by s, stresses/moduli (E, sigma_y) by s^2, density
+# and time are unchanged. All values in this file are WORLD units unless marked sim.
+
+scene:
+  name: "{{scene_name}}"          # <subset>/<scene>
+  package: .                      # package dir, relative to this file (scene.json, gs_model/, source/)
+  gs_model: gs_model              # static frame-0 3DGS written by recon_static.py
+  gs_iteration: -1                # -1 = latest iteration under gs_model/point_cloud
+
+train:
+  seed: 0
+  gpu: 0
+  export_path: ./outputs          # outputs/<tag>/ (tag from --tag)
+  train_tag: null
+  # initial rigid velocity. v0 is never co-optimised with the material (it would absorb early errors):
+  #  closed_form: c(t) = c0 + v0 t + a t^2/2 fitted to the object centroid triangulated from the train
+  #               silhouettes over the first v0_frames frames (must be before floor contact); omega = 0
+  #  learn:       start from init.v0 / init.omega
+  v0_mode: closed_form
+  v0_frames: 8                    # frames used by the closed-form fit (<= 12; 8 at 96 fps)
+  v0_refine: true                 # phase 1: short refinement of v0/omega with the material frozen
+  vel_frames: 5                   # frames simulated in the refinement
+  vel_iters: 30                   # Adam steps on v0/omega
+  vel_lr: 1.0e-2                  # lr for v0/omega (sim units)
+  v0_frozen_in_material_phase: true   # phase 2 never touches v0/omega (default; false = co-optimise)
+  # phase 2: truncated BPTT over stages of sim.frames_per_stage frames, state carried across stages
+  epochs: 10                      # passes over the whole sequence (~25 min each on an H200 with 4 views/frame)
+  internal_epochs: 10             # Adam steps per stage
+  learning_rate: 5.0e-5           # physics-guided network lr (upstream default)
+  expert_lr: 1.0e-2               # lr of the learnable expert parameters (log E, nu, ...)
+  grad_clip: 1.0                  # clip_grad_norm over all trainable parameters (upstream: 1.0)
+  views_per_frame: 4              # random training cameras rendered per frame per step; -1 = all (2x slower)
+  rgb_exclude_cams: {{rgb_exclude_cams}}  # train cams with a black object silhouette (no appearance): alpha loss only
+  ckpt_interval: 1                # save checkpoints/epoch_XXXX.pth every N epochs (resume picks the latest)
+  log_interval: 1
+
+loss:
+  w_rgb: 1.0                      # L1 on RGB (object composited on white)
+  w_alpha: 1.0                    # L1 on the rendered alpha vs the soft GT alpha
+  crop_margin: 50                 # loss is averaged over the union bbox of pred/GT alpha (+margin px)
+  w_chamfer: 0.0                  # optional Chamfer to GT particles (point_clouds/<f>.ply); 0 = video only
+  chamfer_samples: 4096
+
+model:                            # physics-guided network (upstream defaults, see src/physics_guided_network)
+  network: knn                    # knn | mlp | naive
+  normalize_features: true
+  hidden_size: 768
+  depth: 0                        # transformer depth (0 = grouped PointNet only, as upstream configs)
+  num_heads: 8
+  mlp_ratio: 2
+  num_groups: 8192                # FPS centres; every particle takes the logits of its nearest centre
+  group_size: 32
+
+material:
+  rho: 1000.0                     # density (kg/m^3), unchanged by the sim scaling
+  elasticity: neural              # neural = GumbelElasticity over the expert list (hard softmax, straight-through)
+  plasticity: neural
+  # expert lists; entries may repeat (independent parameters each) so a two-region scene is representable
+  elasticity_physicals: [CorotatedElasticity, CorotatedElasticity, StVKElasticity, FluidElasticity]
+  plasticity_physicals: [IdentityPlasticity, IdentityPlasticity, VonMisesPlasticity, DruckerPragerPlasticity, SigmaPlasticity]
+  learnable_experts: true         # experts carry nn.Parameters (E, nu, sigma_y, friction_angle, cohesion)
+  init_E: 1.0e5                   # world Pa; every expert starts here (E_sim = E * s^2)
+  E_range: [1.0e3, 1.0e7]         # world Pa clamp
+  init_nu: 0.3                    # parametrised to stay inside (0, 0.49)
+  init_sigma_y: 1.0e3             # world Pa (von Mises yield stress; sigma_y_sim = sigma_y * s^2)
+  sigma_y_range: [1.0e1, 1.0e6]
+  init_friction_angle: 25.0       # degrees (Drucker-Prager)
+  friction_angle_range: [5.0, 60.0]
+  init_cohesion: 0.0              # Drucker-Prager cohesion (log-strain offset, dimensionless)
+  cohesion_range: [0.0, 0.1]
+  fixed_elasticity: null          # index into elasticity_physicals: bypass the network, every particle uses it
+  fixed_plasticity: null          # (reference rollouts / ablations); null = network decides
+  elasticity_overrides: {}        # {index: {E: .., nu: ..}} world-unit overrides of individual experts
+  plasticity_overrides: {}        # {index: {sigma_y: .., friction_angle: .., cohesion: .., E: .., nu: ..}}
+
+init:                             # rigid initial state for train.v0_mode=learn, world units: v = v0 + omega x (x - centroid)
+  v0: [0.0, 0.0, 0.0]             # m/s
+  omega: [0.0, 0.0, 0.0]          # rad/s
+
+preprocessing:
+  # order: visual-hull pruning -> opacity threshold + bbox crop -> random cap -> filling
+  hull_min_views: null            # keep a Gaussian only if its centre projects inside the frame-0 alpha mask
+                                  # of at least this many train cameras (null = all train cameras minus 1)
+  hull_dilate_px: 3               # mask dilation (px) for the hull test
+  opacity_threshold: 0.02         # drop Gaussians below this opacity before simulating
+  crop_margin: 0.1                # m around the bbox prior (floor is a hard lower bound) for the hard crop
+  max_gaussians: 100000           # random subsample cap on the simulated/rendered Gaussians (null = no cap)
+  particle_filling:               # PhysGaussian-style internal filling in sim space (null = off)
+    n_grid: 100                   # filling lattice over the unit cube; particle volume = (1/n_grid)^3 sim
+    density_threshold: 2.0
+    search_threshold: 1.0
+    max_particles_num: 2000000
+    max_particles_per_cell: 1
+    search_exclude_direction: 3   # 0:+x 1:-x 2:+y 3:-y 4:+z 5:-z (y-up scenes: skip the unseen underside)
+    ray_cast_direction: 2
+    smooth: false
+
+sim:
+  # scene -> sim box. box = (bbox prior ∪ force bbox) ± motion_margin, y_min = floor - floor_margin;
+  # s = box_fill / max(box extent); x_sim = (x - box_center) * s + 0.5
+  bbox_min: {{bbox_min}}          # frame-0 GT particle bounds (scene bounding-box prior), world
+  bbox_max: {{bbox_max}}
+  force_bbox_min: {{force_bbox_min}}   # force-grid lattice bounds (null when the scene has no grid)
+  force_bbox_max: {{force_bbox_max}}
+  box_include_force: true         # take the union with the force-grid bbox (the field is defined there)
+  motion_margin: 0.1              # m added on every side for the expected motion
+  floor_margin: 0.05              # m below the floor kept inside the cube (floor must sit >= 3 cells above 0)
+  box_fill: 0.9                   # fraction of the unit cube the box spans
+  num_grids: 96                   # MPM grid resolution (sim cube)
+  dt: 1.5e-4                      # substep (s); steps_per_frame = round(frame_dt/dt), dt re-fit to frame_dt exactly
+  frame_dt: {{frame_dt}}          # physical frame interval (1 / sim_fps)
+  sim_fps: {{sim_fps}}
+  n_frames: {{n_frames}}          # observed frames simulated / supervised
+  frames_per_stage: 8             # truncated-BPTT window (n_frames need not be a multiple; last stage is shorter)
+  clip_bound: 0.5                 # particles clamped to [clip_bound*dx, 1-clip_bound*dx] (upstream)
+  damping: 1.0
+  gravity: {{gravity}}            # world m/s^2 (y-up)
+  floor_height: {{floor_height}}  # world y of the ground plane
+  floor_surface: separate         # separate (no penetration, free lift-off, no friction) | slip | sticky
+  force_mode: oracle              # oracle = apply the declared external acceleration field | none = ablation
+  force_npz: "{{force_npz}}"      # relative to the package dir (through source/)
+  force_json: "{{force_json}}"
+  physics_h5: "{{physics_h5}}"    # carrier-mode fallback (multi-object exports)
+
+eval:
+  test_cam_ids: {{test_cam_ids}}  # held-out camera(s), rendered for renders_test/ and PSNR/SSIM
+  video_fps: 24

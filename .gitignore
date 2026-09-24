@@ -7,6 +7,7 @@ exp/
 logs*/
 *.log
 wandb/
+*.rrd
 
 # heavyweight artifacts
 *.pth
@@ -27,6 +28,7 @@ build/
 venv/
 
 # per-baseline data symlinks / downloads
+data_store/
 PAC-NeRF/data
 PAC-NeRF/checkpoint
 GIC/data
@@ -44,3 +46,12 @@ MASIV/*.log
 Vid2Sim/dataset/GSO
 Vid2Sim/checkpoints
 Vid2Sim/outputs/
+OmniPhysGS/data/
+OmniPhysGS/outputs/
+OmniPhysGS/third_party/gaussian-splatting/output/
+
+# queue runtime files
+tasks.txt
+tasks.txt.lock
+timings.csv
+gen.err

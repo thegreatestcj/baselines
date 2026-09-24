@@ -24,4 +24,5 @@ dependencies:
       - tqdm==4.66.1
       - trimesh==4.1.0
       - einops==0.7.0
+      - h5py
       - git+https://github.com/facebookresearch/pytorch3d.git

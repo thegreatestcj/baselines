@@ -5,6 +5,7 @@
 #   bash env/setup_env.sh            # everything (all baselines)
 #   bash env/setup_env.sh vid2sim    # Vid2Sim only: masiv env (its base
 #                                    # layer) + vid2sim venv + eval deps
+#   bash env/setup_env.sh omniphysgs # OmniPhysGS only: masiv env + omniphysgs venv
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,7 +28,7 @@ PY="$(conda info --base)/envs/baselines/bin/python"
 if [ ! -x "$PY" ]; then
   conda env create -n baselines -f env/environment.yml
 fi
-$PY -m pip install ninja yacs termcolor gitpython "huggingface_hub[cli]"
+$PY -m pip install ninja yacs termcolor gitpython h5py "huggingface_hub[cli]"
 
 # Compiled CUDA deps are vendored with the cstdint header fix for newer gcc
 # (unpatchable as git+ installs). Two rasterizers coexist under different
@@ -37,9 +38,9 @@ $PY -m pip install --no-build-isolation env/third_party/diff-gaussian-rasterizat
 $PY -m pip install --no-build-isolation Spring-Gaus/submodules/diff-gaussian-rasterization
 fi
 
-if want masiv || want vid2sim; then
+if want masiv || want vid2sim || want omniphysgs; then
 # --- MASIV env (python 3.10 + newer torch/taichi; own spec).
-#     Also the base layer for the Vid2Sim venv. ---
+#     Also the base layer for the Vid2Sim and OmniPhysGS venvs. ---
 MPY="$(conda info --base)/envs/masiv/bin/python"
 if [ ! -x "$MPY" ]; then
   conda env create -n masiv -f MASIV/environment.yml
@@ -94,6 +95,25 @@ VPIP="$(dirname "$VPY")/pip"
 # LGM's rasterizer (vendored with the cstdint/cstdio header fix for newer gcc)
 ( cd Vid2Sim/gs/submodules/diff-gaussian-rasterization && \
   "$VPIP" install --no-build-isolation . )
+fi
+
+if want omniphysgs; then
+# --- OmniPhysGS venv (layered over the masiv env: torch 2.4.1+cu124, warp
+# 1.7.2, taichi 1.7.4, simple_knn, omegaconf come from there). Needs the
+# ORIGINAL inria rasterizer API (returns (color, radii), as the vendored
+# 3DGS@472689c and OmniPhysGS's renderer expect) under the module name
+# diff_gaussian_rasterization — the masiv env only has the jukgei fork as
+# diff_gauss — so it is built from Vid2Sim's vendored (header-patched) copy
+# into this venv. tinycudann/diffusers/transformers (upstream's video-SDS
+# guidance) are NOT installed: the PhysON fit uses multi-view supervision. ---
+OPY="${OMNIPHYSGS_PY:-$(conda info --base)/envs/omniphysgs/bin/python}"
+if [ ! -x "$OPY" ]; then
+  "$MPY" -m venv --system-site-packages "$(dirname "$(dirname "$OPY")")"
+fi
+OPIP="$(dirname "$OPY")/pip"
+"$OPIP" install PyMCubes h5py jaxtyping tensorboard
+( cd Vid2Sim/gs/submodules/diff-gaussian-rasterization && \
+  "$OPIP" install --no-build-isolation . )
 fi
 
 echo "Envs ready ($TARGET). Now: bash setup_data.sh"

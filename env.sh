@@ -45,6 +45,15 @@ if [ -z "${VID2SIM_PY:-}" ] && command -v conda >/dev/null; then
 fi
 export VID2SIM_PY=${VID2SIM_PY:-}
 
+# OmniPhysGS: another venv layered over the masiv env (PyMCubes + the inria
+# diff_gaussian_rasterization; see env/setup_env.sh omniphysgs). Override
+# OMNIPHYSGS_PY in env.local.sh if it lives elsewhere.
+if [ -z "${OMNIPHYSGS_PY:-}" ] && command -v conda >/dev/null; then
+  _cand="$(conda info --base 2>/dev/null)/envs/omniphysgs/bin/python"
+  [ -x "$_cand" ] && OMNIPHYSGS_PY=$_cand
+fi
+export OMNIPHYSGS_PY=${OMNIPHYSGS_PY:-}
+
 # Keep CPU thread pools from oversubscribing when several workers share a node.
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
 export MKL_NUM_THREADS=${MKL_NUM_THREADS:-8}

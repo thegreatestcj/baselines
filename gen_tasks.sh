@@ -1,6 +1,7 @@
 #!/bin/bash
 # Generate the task queue for run_queue.sh.
-# Usage: bash gen_tasks.sh [--shard i/N] [pacnerf] [gic] [masiv] [sgs] [neuma] > tasks.txt
+# Usage: bash gen_tasks.sh [--shard i/N] [pacnerf] [gic] [masiv] [sgs] [neuma]
+#                          [omniphysgs_physon_het] ... > tasks.txt
 # Each line: <tag>|<workdir>|<done-marker>|<command>
 # Tasks whose done-marker exists are skipped at generation time (and again at
 # run time, so a stale queue is harmless).
@@ -18,7 +19,7 @@ _emitted=0
 # No default: public-benchmark baseline numbers are QUOTED in the paper
 # (yi2025masiv); these groups exist for optional verification runs only.
 # The required batch is the our-dataset group (pending the data converter).
-[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|vid2sim_gso|vid2sim_pacnerf|vid2sim_sg ..." >&2; exit 1; }
+[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|vid2sim_gso|vid2sim_pacnerf|vid2sim_sg|omniphysgs_physon_het ..." >&2; exit 1; }
 ALL="$@"
 
 emit() { # tag workdir done cmd
@@ -125,6 +126,67 @@ if [[ " $ALL " == *" vid2sim_sg "* ]]; then
     for s in torus cross cream apple toothpaste chess banana; do vid2sim_sg_task "$s"; done
   else
     echo "gen_tasks: vid2sim env not found (run env/setup_env.sh); skipping vid2sim_sg tasks" >&2
+  fi
+fi
+
+# PhysON (our dataset). A scene is usable once its download is complete:
+# frames (data/), GT particles (point_clouds/), physics.h5 (timing, material
+# arrays) and force_field.npz (external force, applied as known input by
+# default). Partially downloaded scenes are skipped with a note; rerun
+# gen_tasks.sh after setup_data.sh finishes to pick them up.
+# (Multi-object baseline: MOSIV, ICLR 2026 — no public code as of 2026-09; not wired.)
+physon_scene_ready() { # <scene dir>
+  local d=$1 f n_view n_img
+  for f in all_data.json data point_clouds physics.h5 force_field.npz transforms_test.json; do
+    [ -e "$d/$f" ] || { echo "gen_tasks: $d incomplete (no $f); skipping" >&2; return 1; }
+  done
+  # data/ holds r_/a_/m_ variants of every (camera, frame) entry in all_data.json
+  n_view=$(grep -o '"file_path"' "$d/all_data.json" | wc -l)
+  n_img=$(ls "$d/data" | wc -l)
+  [ "$n_img" -ge $((3 * n_view)) ] || {
+    echo "gen_tasks: $d incomplete ($n_img/$((3 * n_view)) frames in data/); skipping" >&2; return 1; }
+}
+# Held-out camera id: the <cam> of the first ./data/a_<cam>_0 entry in the
+# scene's transforms_test.json (1 for the single-object subsets).
+physon_test_cam() { # <scene dir>
+  grep -o 'a_[0-9]*_0' "$1/transforms_test.json" | head -n1 | cut -d_ -f2
+}
+# Test results are presented as silhouette overlays (GT red / prediction
+# cyan / overlap white + per-frame IoU) of the held-out camera:
+# eval/overlay_video.py writes <out>.mp4, <out>_frames.png, <out>_iou.json.
+
+if [[ " $ALL " == *" omniphysgs_physon_het "* ]]; then
+  # OmniPhysGS on PhysON singleobject_heterogeneous_new (12 scenes; two
+  # material regions per object, forced or gravity-only, plus a two-phase
+  # fluid and a sand+pusher scene). PHYSON_HET_SUBSET=singleobject_heterogeneous
+  # selects the older 14-scene variant. Per scene: converter (writes the
+  # scene package: static 3DGS dataset for frame 0, scene.json, config.yaml)
+  # -> recon_static (frame-0 3DGS) -> fit (multi-view supervised material
+  # + initial-velocity fit, free rollout, renders) -> eval_scene.
+  # OMNIPHYSGS_RECON_ARGS (e.g. --iterations 15000) and
+  # OMNIPHYSGS_PHYSON_ARGS (OmegaConf k=v, e.g. sim.force_mode=none) expand
+  # at generation time. Own venv over the masiv env (env/setup_env.sh omniphysgs).
+  source env.sh
+  if [ -x "${OMNIPHYSGS_PY:-}" ]; then
+    sub=${PHYSON_HET_SUBSET:-singleobject_heterogeneous_new}
+    case "$sub" in
+      singleobject_heterogeneous) scenes="0_3 0_4 1_3 1_4 2_0 2_1 3_0 3_1 3_2 3_3 4_0 4_1 4_2 4_3";;
+      *) scenes="0_0 0_1 0_2 0_3 0_4 1_0 1_1 1_2 1_3 1_4 2_0 3_0";;
+    esac
+    omniphysgs_physon_task() { # subset scene
+      local sub=$1 s=$2
+      local src="data/PhysON/$sub/$s" out="outputs/PhysON/$sub/$s"
+      physon_scene_ready "OmniPhysGS/$src" || return 0
+      local cam; cam=$(physon_test_cam "OmniPhysGS/$src")
+      local res="../results/physon_$sub/omniphysgs/$s"
+      # fit.py writes particles/<f>.ply (world), renders_test/<f>.png,
+      # renders_test_alpha/<f>.png and gt_test/<f>.png for the held-out camera.
+      emit "omniphysgs_physon:$sub/$s" "$PWD/OmniPhysGS" "$out/DONE" \
+        "$BASELINES_PY ../eval/convert_physon_to_omniphysgs.py --scene_data $src --out_name $sub/$s && $OMNIPHYSGS_PY recon_static.py --package $src ${OMNIPHYSGS_RECON_ARGS:-} && $OMNIPHYSGS_PY fit.py --config $src/config.yaml --tag PhysON/$sub/$s ${OMNIPHYSGS_PHYSON_ARGS:-} && $BASELINES_PY ../eval/eval_scene.py --pred_plys '$out/particles/*.ply' --gt_plys '$src/point_clouds/*.ply' --pred_frames '$out/renders_test/*.png' --gt_frames '$out/gt_test/*.png' --out $res.json && $BASELINES_PY ../eval/overlay_video.py --gt_rgba '$src/data/a_${cam}_*.png' --pred_mask '$out/renders_test_alpha/*.png' --title OmniPhysGS --subtitle '$sub/$s' --out ${res}_overlay && touch $out/DONE"
+    }
+    for s in $scenes; do omniphysgs_physon_task "$sub" "$s"; done
+  else
+    echo "gen_tasks: omniphysgs env not found (run env/setup_env.sh omniphysgs); skipping omniphysgs_physon_het tasks" >&2
   fi
 fi
 
