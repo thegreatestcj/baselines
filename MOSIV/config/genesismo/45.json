@@ -1,0 +1,161 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.513290286064148,
+            0.240841805934906,
+            -0.31728893518447876
+        ],
+        "xyz_max": [
+            0.47861170768737793,
+            0.6069183349609375,
+            0.5184765458106995
+        ],
+        "obj1_xyz_min": [
+            0.16509287059307098,
+            0.240841805934906,
+            -0.31728893518447876
+        ],
+        "obj1_xyz_max": [
+            0.47861170768737793,
+            0.5521915555000305,
+            -0.06876910477876663
+        ],
+        "obj2_xyz_min": [
+            -0.513290286064148,
+            0.31898871064186096,
+            0.20525461435317993
+        ],
+        "obj2_xyz_max": [
+            -0.17716950178146362,
+            0.6069183349609375,
+            0.5184765458106995
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "45",
+        "fps": 24,
+        "dt": 0.00020833333333333335,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "cream",
+                "object_id": 1,
+                "material": 11,
+                "mu": 10.0,
+                "kappa": 10000.0,
+                "rho": 883.1258154878037,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.0,
+                    0.8274509803921568,
+                    0.8392156862745098
+                ]
+            },
+            {
+                "name": "barrel",
+                "object_id": 2,
+                "material": 11,
+                "mu": 10.0,
+                "kappa": 10000.0,
+                "rho": 1108.1723987522691,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.03137254901960784,
+                    0.03137254901960784,
+                    0.5882352941176471
+                ]
+            }
+        ],
+        "voxel_size": 0.02,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.12,
+        "density_min_th": 0.67,
+        "density_max_th": 0.9,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "kappa": {
+                "lr_decay": false,
+                "init_lr": 0.2,
+                "final_lr": 0.1,
+                "max_steps": 200
+            },
+            "mu": {
+                "lr_decay": false,
+                "init_lr": 0.15,
+                "final_lr": 0.01,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.29166666666666663,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

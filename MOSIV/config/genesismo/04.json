@@ -1,0 +1,173 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.5102060437202454,
+            0.20295485854148865,
+            -0.40451109409332275
+        ],
+        "xyz_max": [
+            0.39133861660957336,
+            0.5332862734794617,
+            0.4353031516075134
+        ],
+        "obj1_xyz_min": [
+            0.1137452945113182,
+            0.2766101360321045,
+            -0.40451109409332275
+        ],
+        "obj1_xyz_max": [
+            0.39133861660957336,
+            0.5332862734794617,
+            -0.1565067619085312
+        ],
+        "obj2_xyz_min": [
+            -0.5102060437202454,
+            0.20295485854148865,
+            0.14614033699035645
+        ],
+        "obj2_xyz_max": [
+            -0.22619618475437164,
+            0.5101271867752075,
+            0.4353031516075134
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "04",
+        "fps": 24,
+        "dt": 0.00020833333333333335,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "egg",
+                "object_id": 1,
+                "material": 10,
+                "init_E": 100000.0,
+                "init_nu": 0.25,
+                "rho": 1132.0620701319017,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    1.0,
+                    0.7843137254901961,
+                    0.1568627450980392
+                ]
+            },
+            {
+                "name": "cream",
+                "object_id": 2,
+                "material": 11,
+                "mu": 10.0,
+                "kappa": 10000.0,
+                "rho": 880.531396977122,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.0,
+                    0.8274509803921568,
+                    0.8392156862745098
+                ]
+            }
+        ],
+        "voxel_size": 0.02,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.12,
+        "density_min_th": 0.67,
+        "density_max_th": 0.9,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "mu": {
+                "lr_decay": false,
+                "init_lr": 0.15,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "kappa": {
+                "lr_decay": false,
+                "init_lr": 0.2,
+                "final_lr": 0.1,
+                "max_steps": 200
+            },
+            "Youngs modulus": {
+                "lr_decay": true,
+                "init_lr": 0.05,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "Poisson ratio": {
+                "lr_decay": true,
+                "init_lr": 0.01,
+                "final_lr": 0.005,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.29166666666666663,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

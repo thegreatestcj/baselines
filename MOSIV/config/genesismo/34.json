@@ -1,0 +1,180 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.4251222610473633,
+            0.23093409836292267,
+            -0.4113417863845825
+        ],
+        "xyz_max": [
+            0.3920523524284363,
+            0.5527524948120117,
+            0.5064628720283508
+        ],
+        "obj1_xyz_min": [
+            0.1537521481513977,
+            0.30703994631767273,
+            -0.4113417863845825
+        ],
+        "obj1_xyz_max": [
+            0.3920523524284363,
+            0.5527524948120117,
+            -0.1349322646856308
+        ],
+        "obj2_xyz_min": [
+            -0.4251222610473633,
+            0.23093409836292267,
+            0.2636043131351471
+        ],
+        "obj2_xyz_max": [
+            -0.10290450602769852,
+            0.5269805788993835,
+            0.5064628720283508
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "34",
+        "fps": 24,
+        "dt": 0.00020833333333333335,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "bread",
+                "object_id": 1,
+                "material": 12,
+                "init_E": 10000.0,
+                "init_nu": 0.25,
+                "init_yield_stress": 1000,
+                "rho": 1044.078078783451,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    1.0,
+                    0.3137254901960784,
+                    0.01568627450980392
+                ]
+            },
+            {
+                "name": "cream",
+                "object_id": 2,
+                "material": 11,
+                "mu": 10.0,
+                "kappa": 10000.0,
+                "rho": 946.0872451219423,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.0,
+                    0.8274509803921568,
+                    0.8392156862745098
+                ]
+            }
+        ],
+        "voxel_size": 0.02,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.12,
+        "density_min_th": 0.67,
+        "density_max_th": 0.9,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "Yield stress": {
+                "lr_decay": true,
+                "init_lr": 0.1,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "Youngs modulus": {
+                "lr_decay": true,
+                "init_lr": 0.05,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "kappa": {
+                "lr_decay": false,
+                "init_lr": 0.2,
+                "final_lr": 0.1,
+                "max_steps": 200
+            },
+            "Poisson ratio": {
+                "lr_decay": true,
+                "init_lr": 0.01,
+                "final_lr": 0.005,
+                "max_steps": 200
+            },
+            "mu": {
+                "lr_decay": false,
+                "init_lr": 0.15,
+                "final_lr": 0.01,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.29166666666666663,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

@@ -1,0 +1,168 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.4651305377483368,
+            0.2190796285867691,
+            -0.4026690423488617
+        ],
+        "xyz_max": [
+            0.4434342682361603,
+            0.5721750855445862,
+            0.5260722637176514
+        ],
+        "obj1_xyz_min": [
+            0.19914716482162476,
+            0.28414756059646606,
+            -0.4026690423488617
+        ],
+        "obj1_xyz_max": [
+            0.4434342682361603,
+            0.5641030073165894,
+            -0.14605571329593658
+        ],
+        "obj2_xyz_min": [
+            -0.4651305377483368,
+            0.2190796285867691,
+            -0.025287793949246407
+        ],
+        "obj2_xyz_max": [
+            -0.17730940878391266,
+            0.5721750855445862,
+            0.5260722637176514
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "08",
+        "fps": 24,
+        "dt": 0.00020833333333333335,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "egg",
+                "object_id": 1,
+                "material": 10,
+                "init_E": 100000.0,
+                "init_nu": 0.25,
+                "rho": 1076.1904132982459,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    1.0,
+                    0.7843137254901961,
+                    0.1568627450980392
+                ]
+            },
+            {
+                "name": "banana",
+                "object_id": 2,
+                "material": 13,
+                "init_E": 1000000.0,
+                "init_nu": 0.3,
+                "init_friction_alpha": 30.0,
+                "rho": 836.7999544703404,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.4549019607843137,
+                    0.7098039215686275,
+                    0.09411764705882353
+                ]
+            }
+        ],
+        "voxel_size": 0.015,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.12,
+        "density_min_th": 0.67,
+        "density_max_th": 0.8,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "friction angle": {
+                "lr_decay": false,
+                "init_lr": 1.0,
+                "final_lr": 0.1,
+                "max_steps": 200
+            },
+            "Youngs modulus": {
+                "lr_decay": true,
+                "init_lr": 0.05,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "Poisson ratio": {
+                "lr_decay": true,
+                "init_lr": 0.01,
+                "final_lr": 0.005,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.29166666666666663,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

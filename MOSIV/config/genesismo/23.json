@@ -1,0 +1,169 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.43588244915008545,
+            0.3441464900970459,
+            -0.5186457633972168
+        ],
+        "xyz_max": [
+            0.42338675260543823,
+            0.6161344647407532,
+            0.3587498068809509
+        ],
+        "obj1_xyz_min": [
+            0.12427867949008942,
+            0.3482917249202728,
+            -0.5186457633972168
+        ],
+        "obj1_xyz_max": [
+            0.42338675260543823,
+            0.6161344647407532,
+            -0.19493071734905243
+        ],
+        "obj2_xyz_min": [
+            -0.43588244915008545,
+            0.3441464900970459,
+            0.15321539342403412
+        ],
+        "obj2_xyz_max": [
+            -0.16225692629814148,
+            0.6131256818771362,
+            0.3587498068809509
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "23",
+        "fps": 24,
+        "dt": 0.00020833333333333335,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "apple",
+                "object_id": 1,
+                "material": 12,
+                "init_E": 10000.0,
+                "init_nu": 0.25,
+                "init_yield_stress": 1000,
+                "rho": 1076.6300118654772,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.6823529411764706,
+                    0.0,
+                    0.0
+                ]
+            },
+            {
+                "name": "bread",
+                "object_id": 2,
+                "material": 12,
+                "init_E": 10000.0,
+                "init_nu": 0.25,
+                "init_yield_stress": 1000,
+                "rho": 840.4360614726866,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    1.0,
+                    0.3137254901960784,
+                    0.01568627450980392
+                ]
+            }
+        ],
+        "voxel_size": 0.02,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.1,
+        "density_min_th": 0.7,
+        "density_max_th": 0.9,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "Yield stress": {
+                "lr_decay": true,
+                "init_lr": 0.1,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "Youngs modulus": {
+                "lr_decay": true,
+                "init_lr": 0.05,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "Poisson ratio": {
+                "lr_decay": true,
+                "init_lr": 0.01,
+                "final_lr": 0.005,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.29166666666666663,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

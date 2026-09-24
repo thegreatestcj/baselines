@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/mnt/e/GenesisMO/dataset_45_new_0.01/01/**)",
+      "Read(//mnt/e/GenesisMO/02/**)",
+      "Read(//mnt/e/GenesisMO/**)",
+      "Read(//mnt/c/Users/Chunjiang/OneDrive/Code/ICLR_2026/gic_multiobj/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

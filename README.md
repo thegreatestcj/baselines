@@ -1,7 +1,7 @@
 # baselines
 
 Self-contained codebase for running the system-identification baselines
-(PAC-NeRF, GIC, MASIV, NeuMA, Spring-Gaus, Vid2Sim, OmniPhysGS) and evaluating
+(PAC-NeRF, GIC, MASIV, NeuMA, Spring-Gaus, Vid2Sim, OmniPhysGS, MOSIV) and evaluating
 them with a unified protocol. No external repos or data needed beyond the steps below.
 All public-benchmark data in https://huggingface.co/datasets/HoneyLane/gic-baselines-data;
 our own dataset (PhysON) in https://huggingface.co/datasets/cmu-robotics-institute/PhysON
@@ -9,19 +9,20 @@ our own dataset (PhysON) in https://huggingface.co/datasets/cmu-robotics-institu
 
 ## PhysON (our dataset) quickstart
 
-Task group `omniphysgs_physon_het` runs OmniPhysGS on the 12
-`singleobject_heterogeneous_new` scenes (two material regions per object,
-forced or gravity-only, plus a two-phase fluid and a sand+pusher scene).
+Two task groups run the baselines on PhysON: `omniphysgs_physon_het` (OmniPhysGS on
+the 12 `singleobject_heterogeneous_new` scenes: two material regions per object, forced
+or gravity-only, plus a two-phase fluid and a sand+pusher scene) and `mosiv_physon_mo`
+(MOSIV on the two-object scenes of `multiobject_heterogeneous_new`; MOSIV's released
+code handles exactly two objects, the 3-object scenes are skipped with a note).
 Everything below is what a fresh machine needs; nothing else has to be edited.
 
 ```bash
-bash env/setup_env.sh omniphysgs   # conda env "masiv" + venv "omniphysgs"
-                                   # layered over it; needs nvcc (CUDA 12.x)
-bash env/setup_env.sh main         # conda env "baselines": converters, eval, hf CLI
+bash env/setup_env.sh main         # conda env "baselines": MOSIV, converters, eval, hf CLI
+bash env/setup_env.sh omniphysgs   # conda env "masiv" + venv "omniphysgs" layered over it
 hf auth login                      # token with READ access to the private HF repo
                                    # cmu-robotics-institute/PhysON (ask us for org access)
 bash setup_data.sh                 # public pack + PhysON, wires all symlinks
-bash gen_tasks.sh omniphysgs_physon_het > tasks.txt   # 12 tasks
+bash gen_tasks.sh mosiv_physon_mo omniphysgs_physon_het > tasks.txt
 bash run_queue.sh 0,1,2,3 1        # your GPUs, 1 worker per GPU (80G class)
 ```
 
@@ -31,46 +32,59 @@ step (set `PHYSON_SUBSETS=` to skip it, see below). No file in the repo needs
 editing on a new machine: interpreters are found under `$(conda info --base)/envs`
 by `env.sh`, and machine-specific overrides go into the gitignored `env.local.sh`.
 
-`PHYSON_SUBSETS` (default `singleobject_heterogeneous_new`) selects what
-`setup_data.sh` fetches from the PhysON repo; `PHYSON_SUBSETS=` (empty) skips
-PhysON so the public benchmark setup works without org access. Scenes still
+`PHYSON_SUBSETS` (default `singleobject_heterogeneous_new multiobject_heterogeneous_new`)
+selects what `setup_data.sh` fetches from the PhysON repo; `PHYSON_SUBSETS=` (empty)
+skips PhysON so the public benchmark setup works without org access. Scenes still
 downloading are skipped by `gen_tasks.sh` (stderr note) — rerun it after the
-download completes. `PHYSON_HET_SUBSET=singleobject_heterogeneous` switches
-the group to the older 14-scene variant. Each task is resumable
-(converter → recon → fit → rollout → eval → overlay → `DONE`).
+download completes. `PHYSON_HET_SUBSET=singleobject_heterogeneous` switches the
+OmniPhysGS group to the older 14-scene variant. Each task is resumable
+(converter → recon → fit/train → rollout → eval → overlay → `DONE`).
 
 External force: every PhysON scene ships its analytic force field
 (`force_field.npz`, gravity excluded on the way in). It is a declared scene
-condition, so the method applies it as known input by default (`oracle`).
-`OMNIPHYSGS_PHYSON_ARGS='sim.force_mode=none'` runs the method as-is
-(ablation); the same variable takes any OmegaConf k=v override (e.g.
-`train.epochs=10`), and `OMNIPHYSGS_RECON_ARGS='--iterations 15000'` sets the
-static 3DGS budget. They expand when `gen_tasks.sh` runs, so `tasks.txt`
-records them.
+condition, so both methods apply it as known input by default (`oracle`).
+`OMNIPHYSGS_PHYSON_ARGS='sim.force_mode=none'` / `MOSIV_PHYSON_CONVERT_ARGS='--force_mode none'`
+run the methods as-is (ablation). `OMNIPHYSGS_PHYSON_ARGS` takes any OmegaConf k=v
+override (e.g. `train.epochs=10`), `OMNIPHYSGS_RECON_ARGS='--iterations 15000'` sets
+the static 3DGS budget, and `MOSIV_PHYSON_CONVERT_ARGS` takes the converter's options
+(`--iter_cnt 80 --n_frames 48 --vel_iter_cnt 80 --bc_style 2`, see
+`eval/convert_physon_to_mosiv.py --help`). They expand when `gen_tasks.sh` runs, so
+`tasks.txt` records them.
 
-Outputs per scene, under `results/physon_singleobject_heterogeneous_new/omniphysgs/`:
-`<scene>.json` (per-frame CD/EMD vs GT particles, PSNR/SSIM/LPIPS on the
-held-out camera) and the silhouette overlay of the held-out camera,
-`<scene>_overlay.mp4` / `<scene>_overlay_frames.png` /
-`<scene>_overlay_iou.json` (GT red, prediction cyan, overlap white,
-per-frame IoU) — the standard way test results are presented here.
-`python eval/aggregate.py --by_group` rolls the jsons up. Raw runs live in
-`OmniPhysGS/outputs/PhysON/<subset>/<scene>` (`particles/`, `renders_test/`,
-`renders_test_alpha/`, `material.ply`, `params.json`, `metrics.json`).
+Outputs per scene, under `results/physon_singleobject_heterogeneous_new/omniphysgs/`
+and `results/physon_multiobject/mosiv/`: `<scene>.json` (per-frame CD/EMD vs GT
+particles; OmniPhysGS also PSNR/SSIM/LPIPS on the held-out camera) and the
+silhouette overlay of the held-out camera, `<scene>_overlay.mp4` /
+`<scene>_overlay_frames.png` / `<scene>_overlay_iou.json` (GT red, prediction
+cyan, overlap white, per-frame IoU) — the standard way test results are
+presented here. `python eval/aggregate.py --by_group` rolls the jsons up. Raw runs
+live in `OmniPhysGS/outputs/PhysON/<subset>/<scene>` (`particles/`,
+`renders_test/`, `renders_test_alpha/`, `material.ply`, `params.json`, `metrics.json`)
+and `MOSIV/output/physon/<subset>/<scene>` (`<scene>-pred.json` fitted per-object
+parameters, `mpm/simulation_<f>.ply`, `img_render/`, `prediction_metrics.json`
+with per-object Chamfer).
 
 OmniPhysGS adaptation (details in `OmniPhysGS/README_baselines.md`): upstream
 fits its per-particle constitutive mixture (KNN-transformer over expert
 elasticity/plasticity models + PyTorch MPM) to a video-diffusion SDS prior;
 here the SDS term is replaced by multi-view photometric + alpha supervision
 against the observed frames, the expert parameters (E, nu, yield stress,
-friction, cohesion) become learnable, a rigid initial velocity is learned,
-the known external force is fed to the MPM grid, and the Gaussians come from
-a static 3DGS of frame 0 with internal particle filling. Upstream `main.py`
-is untouched; the new entry points are `recon_static.py` and `fit.py`.
+friction, cohesion) become learnable, the initial velocity comes from a
+closed-form fit of the triangulated silhouette centroid (frozen during the
+material fit), the known external force is fed to the MPM grid, and the
+Gaussians come from a static 3DGS of frame 0 with internal particle filling.
+Upstream `main.py` is untouched; the new entry points are `recon_static.py` and `fit.py`.
 
-Multi-object subset (`multiobject_heterogeneous_new`): the intended baseline is
-MOSIV (Liu et al., ICLR 2026, https://arxiv.org/abs/2603.06022), whose code is
-not public as of 2026-09 — nothing is wired for it yet.
+MOSIV adaptation (details in `MOSIV/README_baselines.md`): the authors' code
+(private repo, vendored) runs unchanged except for (a) the GenesisMO input
+conversion — PhysON ships no instance masks, so oracle per-object masks are
+rasterised from the GT particles (MOSIV's own benchmark provides simulator
+masks), per-object GT clouds are split by `region_offsets`, material classes come
+from metadata and initial parameters are MOSIV's per-class defaults; (b) the
+declared external force added to the taichi MPM grid update; (c) the physical
+frame rate (80 fps) and a `separate` floor; (d) `export_prediction.py`, which
+re-simulates the fitted scene and writes particles/silhouettes instead of
+MOSIV's appearance-refit prediction script.
 
 
 ## Vid2Sim-only quickstart (for the current handoff)
@@ -155,7 +169,7 @@ bash run_novel.sh <GPU> GIC/output/pacnerf/<scene> GIC/data/pacnerf/<scene> \
 
 ## Layout
 
-- `PAC-NeRF/ GIC/ MASIV/ NeuMA/ Spring-Gaus/ Vid2Sim/ OmniPhysGS/` — vendored
+- `PAC-NeRF/ GIC/ MASIV/ NeuMA/ Spring-Gaus/ Vid2Sim/ OmniPhysGS/ MOSIV/` — vendored
   baseline code, upstream commits pinned in `VERSIONS.md`, local patches
   listed there.
 - `env/` — environment spec + vendored CUDA deps. `eval/` — metrics, dataset

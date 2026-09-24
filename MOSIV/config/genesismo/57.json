@@ -1,0 +1,168 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.5544348955154419,
+            0.24846172332763672,
+            -0.458861768245697
+        ],
+        "xyz_max": [
+            0.4563002288341522,
+            0.668039858341217,
+            0.5391268134117126
+        ],
+        "obj1_xyz_min": [
+            0.14395974576473236,
+            0.2557019293308258,
+            -0.458861768245697
+        ],
+        "obj1_xyz_max": [
+            0.4563002288341522,
+            0.45330196619033813,
+            -0.12194184213876724
+        ],
+        "obj2_xyz_min": [
+            -0.5544348955154419,
+            0.24846172332763672,
+            0.20858588814735413
+        ],
+        "obj2_xyz_max": [
+            -0.20537109673023224,
+            0.668039858341217,
+            0.5391268134117126
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "57",
+        "fps": 24,
+        "dt": 0.00020833333333333335,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "barrel",
+                "object_id": 1,
+                "material": 11,
+                "mu": 10.0,
+                "kappa": 10000.0,
+                "rho": 1094.7729339547236,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.03137254901960784,
+                    0.03137254901960784,
+                    0.5882352941176471
+                ]
+            },
+            {
+                "name": "cushion",
+                "object_id": 2,
+                "material": 13,
+                "init_E": 1000000.0,
+                "init_nu": 0.3,
+                "init_friction_alpha": 30.0,
+                "rho": 885.5905146024952,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.34901960784313724,
+                    0.16862745098039217,
+                    0.10588235294117647
+                ]
+            }
+        ],
+        "voxel_size": 0.015,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.12,
+        "density_min_th": 0.67,
+        "density_max_th": 0.8,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "friction angle": {
+                "lr_decay": false,
+                "init_lr": 1.0,
+                "final_lr": 0.1,
+                "max_steps": 200
+            },
+            "kappa": {
+                "lr_decay": false,
+                "init_lr": 0.2,
+                "final_lr": 0.1,
+                "max_steps": 200
+            },
+            "mu": {
+                "lr_decay": false,
+                "init_lr": 0.15,
+                "final_lr": 0.01,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.29166666666666663,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

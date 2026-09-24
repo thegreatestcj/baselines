@@ -1,0 +1,161 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.5192223787307739,
+            0.17665188014507294,
+            -0.45273643732070923
+        ],
+        "xyz_max": [
+            0.5057070851325989,
+            0.621544599533081,
+            0.5496281981468201
+        ],
+        "obj1_xyz_min": [
+            0.2683202028274536,
+            0.23965387046337128,
+            -0.45273643732070923
+        ],
+        "obj1_xyz_max": [
+            0.5057070851325989,
+            0.4928552210330963,
+            -0.16220799088478088
+        ],
+        "obj2_xyz_min": [
+            -0.5192223787307739,
+            0.17665188014507294,
+            0.19830244779586792
+        ],
+        "obj2_xyz_max": [
+            -0.27732253074645996,
+            0.621544599533081,
+            0.5496281981468201
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "01",
+        "fps": 24,
+        "dt": 0.00020833333333333332,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "egg",
+                "object_id": 1,
+                "material": 10,
+                "init_E": 100000.0,
+                "init_nu": 0.25,
+                "rho": 1175.74,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    1.0,
+                    0.784,
+                    0.157
+                ]
+            },
+            {
+                "name": "pawn",
+                "object_id": 2,
+                "material": 10,
+                "init_E": 100000.0,
+                "init_nu": 0.25,
+                "rho": 1097.44,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.004,
+                    0.267,
+                    0.129
+                ]
+            }
+        ],
+        "voxel_size": 0.02,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.1,
+        "density_min_th": 0.5,
+        "density_max_th": 0.7,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "Youngs modulus": {
+                "lr_decay": true,
+                "init_lr": 0.05,
+                "final_lr": 0.01,
+                "max_steps": 200
+            },
+            "Poisson ratio": {
+                "lr_decay": true,
+                "init_lr": 0.01,
+                "final_lr": 0.005,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.2917,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

@@ -1,0 +1,157 @@
+{
+    "data": {
+        "xyz_min": [
+            -0.5024663209915161,
+            0.11695093661546707,
+            -0.412533164024353
+        ],
+        "xyz_max": [
+            0.4151380658149719,
+            0.6493405699729919,
+            0.5432265400886536
+        ],
+        "obj1_xyz_min": [
+            0.1747894138097763,
+            0.29791364073753357,
+            -0.412533164024353
+        ],
+        "obj1_xyz_max": [
+            0.4151380658149719,
+            0.560819685459137,
+            -0.1674826294183731
+        ],
+        "obj2_xyz_min": [
+            -0.5024663209915161,
+            0.11695093661546707,
+            0.23684896528720856
+        ],
+        "obj2_xyz_max": [
+            -0.11680825054645538,
+            0.6493405699729919,
+            0.5432265400886536
+        ]
+    },
+    "gs": {
+        "eval": true,
+        "is_blender": true,
+        "timenet": true,
+        "test_iterations": [
+            5000,
+            6000,
+            7000
+        ],
+        "save_iterations": [
+            7000,
+            10000,
+            20000,
+            30000,
+            40000
+        ],
+        "quiet": false,
+        "iterations": 40000,
+        "enable_mask_training": true,
+        "mask_loss_weight": 0.5
+    },
+    "physics": {
+        "id": "68",
+        "fps": 24,
+        "dt": 0.00020833333333333335,
+        "gravity": [
+            0,
+            -9.8,
+            0
+        ],
+        "ground_friction": 0.5,
+        "sub_objects": [
+            {
+                "name": "potato",
+                "object_id": 1,
+                "material": 13,
+                "init_E": 1000000.0,
+                "init_nu": 0.3,
+                "init_friction_alpha": 30.0,
+                "rho": 1120.3194968602745,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.4392156862745098,
+                    0.30980392156862746,
+                    0.20392156862745098
+                ]
+            },
+            {
+                "name": "banana",
+                "object_id": 2,
+                "material": 13,
+                "init_E": 1000000.0,
+                "init_nu": 0.3,
+                "init_friction_alpha": 30.0,
+                "rho": 805.9432480797137,
+                "init_vel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "color": [
+                    0.4549019607843137,
+                    0.7098039215686275,
+                    0.09411764705882353
+                ]
+            }
+        ],
+        "voxel_size": 0.015,
+        "mpm_iter_cnt": 200,
+        "bc": {
+            "ground": [
+                [
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    1,
+                    0
+                ],
+                0
+            ]
+        },
+        "density_grid_size": 0.12,
+        "density_min_th": 0.67,
+        "density_max_th": 0.8,
+        "opacity_threshold": 0.01,
+        "random_sample": false,
+        "img_loss": true,
+        "geo_loss": true,
+        "w_img": 0.0,
+        "w_alp": 1.0,
+        "w_geo": 1.0,
+        "params": {
+            "friction angle": {
+                "lr_decay": false,
+                "init_lr": 1.0,
+                "final_lr": 0.1,
+                "max_steps": 200
+            }
+        },
+        "iter_cnt": 200,
+        "vel_iter_cnt": 80,
+        "vel_estimation_frames": 4,
+        "vel_lr": 0.05,
+        "init_vel": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "collide_time": 0.29166666666666663,
+        "collide_loc": [
+            0,
+            0,
+            0.25
+        ],
+        "n_frames": 20
+    }
+}

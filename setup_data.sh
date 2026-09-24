@@ -8,8 +8,8 @@
 #   DATA_STORE_DIR: where to put the actual files (default: ./data_store)
 #   PHYSON_SUBSETS: space-separated PhysON subsets to fetch (our dataset,
 #     private HF repo cmu-robotics-institute/PhysON — needs a token with read
-#     access to that org). Default: the subset the omniphysgs_physon_het
-#     group uses (add multiobject_heterogeneous_new etc. as needed). Set
+#     access to that org). Default: the subsets the omniphysgs_physon_het and
+#     mosiv_physon_mo groups use. Set
 #     PHYSON_SUBSETS= (empty) to skip PhysON entirely; the public benchmark
 #     setup then works without org access.
 set -euo pipefail
@@ -18,7 +18,7 @@ source env.sh
 STORE=${1:-$PWD/data_store}
 REPO=HoneyLane/gic-baselines-data
 PHYSON_REPO=cmu-robotics-institute/PhysON
-PHYSON_SUBSETS=${PHYSON_SUBSETS-singleobject_heterogeneous_new}
+PHYSON_SUBSETS=${PHYSON_SUBSETS-singleobject_heterogeneous_new multiobject_heterogeneous_new}
 
 # hf CLI from the baselines env (installed by env/setup_env.sh), with a
 # PATH fallback for people who bring their own.
@@ -79,8 +79,7 @@ link "$STORE/vid2sim/dataset/GSO"           Vid2Sim/dataset/GSO
 # PhysON (our dataset): <subset>/<scene>/{all_data.json,data/,point_clouds/,
 # physics.h5,force_field.npz,...}. One download call per subset (each is
 # tens of thousands of small files; same resume + 429-retry loop as above).
-# The physon_* task groups read it through OmniPhysGS/data/PhysON (a MASIV
-# link is kept for the multi-object subsets).
+# The physon_* task groups read it through OmniPhysGS/data/PhysON and MOSIV/data/PhysON.
 if [ -n "$PHYSON_SUBSETS" ]; then
   for sub in $PHYSON_SUBSETS; do
     for attempt in 1 2 3 4; do
@@ -92,6 +91,7 @@ if [ -n "$PHYSON_SUBSETS" ]; then
   done
   link "$STORE/physon"                      MASIV/data/PhysON
   link "$STORE/physon"                      OmniPhysGS/data/PhysON
+  link "$STORE/physon"                      MOSIV/data/PhysON
 else
   echo "PHYSON_SUBSETS empty: skipping PhysON (our dataset)."
 fi

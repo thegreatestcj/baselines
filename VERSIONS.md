@@ -11,6 +11,7 @@ Local modifications are committed on top; diff against the commits below to see 
 | MASIV/ | https://github.com/Skaldak/MASIV.git | f05ff17 (vendored with velocity/constitution smoke validated) |
 | NeuMA/ | https://github.com/XJay18/NeuMA.git | (cloned 2026-09-02; extern rasterizer pinned 59f5f77e) |
 | Vid2Sim/ | https://github.com/CzzzzH/Vid2Sim.git | 8fbb26d7e16ca03b5322e490c7a8d422f70c2e57 |
+| MOSIV/ | https://github.com/yizhou42/MOSIV.git (private; authors' code of Liu et al., ICLR 2026) | 4d0077db5279ac946ba6fa4f6ec345126be5a9e0 (2025-11-25); GIC-based |
 | OmniPhysGS/ | https://github.com/wgsxm/OmniPhysGS.git | 5ab915b014467b911581b0c6df351713d3114a08 (2025-03-26) |
 | OmniPhysGS/third_party/gaussian-splatting/ | https://github.com/graphdeco-inria/gaussian-splatting.git | 472689c0dc70417448fb451bf529ae532d32c095 (2024-04-05); vendored without its submodules and `SIBR_viewers` — the rasterizer (`diff_gaussian_rasterization`, original inria API returning `(color, radii)`) is built from Vid2Sim's vendored copy `Vid2Sim/gs/submodules/diff-gaussian-rasterization`, `simple_knn` comes from `env/third_party/simple-knn` via the masiv env |
 
@@ -46,3 +47,17 @@ Local modifications are committed on top; diff against the commits below to see 
 - OmniPhysGS/src/utils/physon_scene.py (new) — package/camera/GT reader.
 - OmniPhysGS/third_party/gaussian-splatting/train.py — network-GUI bind failure
   tolerated (several reconstructions in parallel on one machine).
+
+### MOSIV (PhysON multi-object support)
+
+- MOSIV/simulator/mpm_simulator.py — external acceleration field on the taichi grid
+  (`set_external_acceleration`, `set_frame`; dense box per observed frame, added to
+  gravity in `grid_op`; `advance`/`advance_grad` select the frame's sample).
+- MOSIV/simulator/estimator_multi.py — `_setup_external_force` (config keys
+  `force_mode`, `force_npz`, `force_json`, `force_h5`, `force_box_margin`).
+- MOSIV/utils/physon_force.py (new) — standalone copy of `eval/physon_common.ForceField`.
+- MOSIV/train_dynamic_MO.py — `traj_save_interval` (upstream re-simulated the
+  trajectory every iteration), `TI_DEVICE_MEMORY_GB` override for taichi.
+- MOSIV/export_prediction.py (new) — rollout with the fitted parameters, per-frame /
+  per-object plys, held-out-camera silhouettes, per-object Chamfer.
+- MOSIV/README_baselines.md (new) — adaptation notes.

@@ -28,7 +28,7 @@ PY="$(conda info --base)/envs/baselines/bin/python"
 if [ ! -x "$PY" ]; then
   conda env create -n baselines -f env/environment.yml
 fi
-$PY -m pip install ninja yacs termcolor gitpython h5py "huggingface_hub[cli]"
+$PY -m pip install ninja yacs termcolor gitpython h5py scikit-learn matplotlib "huggingface_hub[cli]"  # (+ MOSIV: sklearn/matplotlib)
 
 # Compiled CUDA deps are vendored with the cstdint header fix for newer gcc
 # (unpatchable as git+ installs). Two rasterizers coexist under different

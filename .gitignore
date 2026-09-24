@@ -47,6 +47,10 @@ Vid2Sim/dataset/GSO
 Vid2Sim/checkpoints
 Vid2Sim/outputs/
 OmniPhysGS/data/
+MOSIV/data/
+MOSIV/output/
+MOSIV/config/physon/
+MOSIV/*.log
 OmniPhysGS/outputs/
 OmniPhysGS/third_party/gaussian-splatting/output/
 
@@ -55,3 +59,4 @@ tasks.txt
 tasks.txt.lock
 timings.csv
 gen.err
+.ti_cache/

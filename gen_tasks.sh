@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generate the task queue for run_queue.sh.
 # Usage: bash gen_tasks.sh [--shard i/N] [pacnerf] [gic] [masiv] [sgs] [neuma]
-#                          [omniphysgs_physon_het] ... > tasks.txt
+#                          [mosiv_physon_mo] [omniphysgs_physon_het] ... > tasks.txt
 # Each line: <tag>|<workdir>|<done-marker>|<command>
 # Tasks whose done-marker exists are skipped at generation time (and again at
 # run time, so a stale queue is harmless).
@@ -19,7 +19,7 @@ _emitted=0
 # No default: public-benchmark baseline numbers are QUOTED in the paper
 # (yi2025masiv); these groups exist for optional verification runs only.
 # The required batch is the our-dataset group (pending the data converter).
-[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|vid2sim_gso|vid2sim_pacnerf|vid2sim_sg|omniphysgs_physon_het ..." >&2; exit 1; }
+[ $# -gt 0 ] || { echo "usage: gen_tasks.sh [--shard i/N] pacnerf|gic|masiv|sgs|neuma|neuma45|vid2sim_gso|vid2sim_pacnerf|vid2sim_sg|mosiv_physon_mo|omniphysgs_physon_het ..." >&2; exit 1; }
 ALL="$@"
 
 emit() { # tag workdir done cmd
@@ -134,7 +134,6 @@ fi
 # arrays) and force_field.npz (external force, applied as known input by
 # default). Partially downloaded scenes are skipped with a note; rerun
 # gen_tasks.sh after setup_data.sh finishes to pick them up.
-# (Multi-object baseline: MOSIV, ICLR 2026 — no public code as of 2026-09; not wired.)
 physon_scene_ready() { # <scene dir>
   local d=$1 f n_view n_img
   for f in all_data.json data point_clouds physics.h5 force_field.npz transforms_test.json; do
@@ -147,13 +146,36 @@ physon_scene_ready() { # <scene dir>
     echo "gen_tasks: $d incomplete ($n_img/$((3 * n_view)) frames in data/); skipping" >&2; return 1; }
 }
 # Held-out camera id: the <cam> of the first ./data/a_<cam>_0 entry in the
-# scene's transforms_test.json (1 for the single-object subsets).
+# scene's transforms_test.json (0 for the multi-object subset, 1 for the single-object ones).
 physon_test_cam() { # <scene dir>
   grep -o 'a_[0-9]*_0' "$1/transforms_test.json" | head -n1 | cut -d_ -f2
 }
 # Test results are presented as silhouette overlays (GT red / prediction
 # cyan / overlap white + per-frame IoU) of the held-out camera:
 # eval/overlay_video.py writes <out>.mp4, <out>_frames.png, <out>_iou.json.
+
+if [[ " $ALL " == *" mosiv_physon_mo "* ]]; then
+  # MOSIV (Liu et al., ICLR 2026; vendored MOSIV/, runs in the main env) on the two-object PhysON
+  # multiobject_heterogeneous_new scenes (the released code handles exactly two objects). Per
+  # scene: converter (GenesisMO layout + instance masks from the GT particles + config from
+  # eval/convert_physon_to_mosiv.py) -> train_dynamic_MO (object-aware dynamic 3DGS, lifting,
+  # velocity + per-object parameter fit; external force applied as known input) ->
+  # export_prediction (rollout, plys, held-out-camera silhouettes) -> eval_scene -> overlay.
+  # MOSIV_PHYSON_CONVERT_ARGS: converter options (e.g. --iter_cnt 100 --n_frames 32 --force_mode none).
+  source env.sh
+  mosiv_physon_task() { # scene
+    local sub=multiobject_heterogeneous_new s=$1
+    local src="data/PhysON/$sub/$s" conv="data/PhysON_mosiv/$sub/$s" out="output/physon/$sub/$s" cfg="config/physon/$sub/$s.json"
+    physon_scene_ready "MOSIV/$src" || return 0
+    local nobj; nobj=$(grep -o '"n_objects": *[0-9]*' "MOSIV/$src/metadata.json" | grep -o '[0-9]*$')
+    [ "$nobj" = 2 ] || { echo "gen_tasks: $s has $nobj objects; MOSIV handles two, skipping" >&2; return 0; }
+    local cam; cam=$(physon_test_cam "MOSIV/$src")
+    local res="../results/physon_multiobject/mosiv/$s"
+    emit "mosiv_physon:$sub/$s" "$PWD/MOSIV" "$out/DONE" \
+      "$BASELINES_PY ../eval/convert_physon_to_mosiv.py --scene_data $src --out $conv --config_out $cfg ${MOSIV_PHYSON_CONVERT_ARGS:-} && $BASELINES_PY train_dynamic_MO.py -c $cfg -s $conv -m $out --reg_scale --reg_alpha && $BASELINES_PY export_prediction.py -c $cfg -s $conv -m $out --view_id $cam && $BASELINES_PY ../eval/eval_scene.py --pred_plys '$out/mpm/simulation_*.ply' --gt_plys '$src/point_clouds/*.ply' --out $res.json && $BASELINES_PY ../eval/overlay_video.py --gt_rgba '$src/data/a_${cam}_*.png' --pred_mask '$out/img_render/${cam}_*_mask.png' --title MOSIV --subtitle '$sub/$s' --out ${res}_overlay && touch $out/DONE"
+  }
+  for i in {0..19}; do mosiv_physon_task "0_$i"; done
+fi
 
 if [[ " $ALL " == *" omniphysgs_physon_het "* ]]; then
   # OmniPhysGS on PhysON singleobject_heterogeneous_new (12 scenes; two
