@@ -869,8 +869,9 @@ def training_MO(dataset, opt, pipe, testing_iterations, saving_iterations):
             if iteration % 10000 == 0 and iteration > 0:
                 save_deformed_trajectory(gaussians, deform, scene, dataset, iteration,
                                          start_frame=0, end_frame=30)
-                # Also save colored Gaussians for all frames
-                gaussians.save_ply(path="/ssd2/yizhou/outputs/GIC_MO/01_debug/gs_colored/gs.ply")
+                # Also save colored Gaussians for all frames (baselines: under the model path; upstream
+                # wrote to an absolute path on the authors' machine)
+                gaussians.save_ply(path=os.path.join(dataset.model_path, "debug", "gs_colored", f"gs_{iteration}.ply"))
 
             # Save training videos every 5k iterations
             if iteration % 5000 == 0 and iteration > 0:
