@@ -84,6 +84,8 @@ def parse_args():
     p.add_argument("--traj_save_interval", type=int, default=10)
     p.add_argument("--mask_radius_px", type=int, default=6)
     p.add_argument("--bbox_margin", type=float, default=0.05, help="m around the per-object frame-0 bbox (init points)")
+    p.add_argument("--max_particles", type=int, default=200000,
+                   help="lifted-particle budget; the density grid / MPM voxel are coarsened for bigger objects")
     p.add_argument("--force", action="store_true", help="regenerate masks even if present")
     return p.parse_args()
 
@@ -255,6 +257,17 @@ def main():
         voxel, dgs, dmin, dmax = 0.02, 0.1, 0.7, 0.9
     else:
         voxel, dgs, dmin, dmax = 0.02, 0.1, 0.5, 0.7
+    # particle budget: MOSIV lifts one particle per (density_grid_size/16)^3 of object volume; a big
+    # object (e.g. the cushion of multiobject_heterogeneous/0_0: 0.1 m^3 -> 400k particles) would
+    # need far more taichi memory/time than the ~150k of MOSIV's own scenes, so both grid sizes are
+    # scaled up together until the estimate fits --max_particles
+    volume = float(scene.particle_size) ** 3 * sum(e - s for (_, _, _, (s, e)) in objs)
+    n_est = volume / (dgs / 16.0) ** 3
+    if n_est > a.max_particles:
+        f = (n_est / a.max_particles) ** (1.0 / 3.0)
+        print(f"[budget] ~{n_est:.0f} lifted particles at density_grid_size {dgs} > {a.max_particles}: "
+              f"scaling density_grid_size/voxel_size by {f:.2f}")
+        dgs, voxel = dgs * f, voxel * f
     n_frames = int(a.n_frames or n_frames_total)
     force_mode = a.force_mode
     if force_mode == "oracle" and not (src / "force_field.npz").exists():

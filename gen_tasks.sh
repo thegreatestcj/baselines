@@ -177,7 +177,10 @@ if [[ " $ALL " == *" mosiv_physon_mo "* ]]; then
   sub=${PHYSON_MO_SUBSET:-multiobject_heterogeneous}
   for d in MOSIV/data/PhysON/$sub/*/; do
     [ -f "$d/metadata.json" ] || continue
-    mosiv_physon_task "$sub" "$(basename "$d")"
+    s=$(basename "$d")
+    # PHYSON_SCENES="0_0 0_3 ..." restricts a machine to a subset of the scenes (split a run over machines)
+    [ -n "${PHYSON_SCENES:-}" ] && [[ " $PHYSON_SCENES " != *" $s "* ]] && continue
+    mosiv_physon_task "$sub" "$s"
   done
 fi
 
@@ -203,7 +206,12 @@ if [[ " $ALL " == *" omniphysgs_physon_het "* ]]; then
     esac
     OMNIPHYSGS_PHYSON_ARGS="${OMNIPHYSGS_PHYSON_ARGS-$omni_default_args}"
     scenes=""
-    for d in OmniPhysGS/data/PhysON/$sub/*/; do [ -f "$d/metadata.json" ] && scenes="$scenes $(basename "$d")"; done
+    for d in OmniPhysGS/data/PhysON/$sub/*/; do
+      [ -f "$d/metadata.json" ] || continue
+      s=$(basename "$d")
+      [ -n "${PHYSON_SCENES:-}" ] && [[ " $PHYSON_SCENES " != *" $s "* ]] && continue
+      scenes="$scenes $s"
+    done
     omniphysgs_physon_task() { # subset scene
       local sub=$1 s=$2
       local src="data/PhysON/$sub/$s" out="outputs/PhysON/$sub/$s"

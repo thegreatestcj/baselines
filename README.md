@@ -91,6 +91,13 @@ every optimiser step runs the differentiable MPM forward *and* backward over the
 particles × 48 frames × 200–400 substeps/frame in taichi with 100-substep re-forward
 checkpointing, ≈ 2.5–3.5 min per parameter iteration).
 
+Several machines: either give each machine its own scenes
+(`PHYSON_SCENES="0_3 0_4 1_3" bash gen_tasks.sh omniphysgs_physon_het > tasks.txt`, any
+subset of the scene ids; the other groups/subsets are selected the same way) or, when
+they share the filesystem, run `run_queue.sh` on all of them against the same checkout:
+a scene is claimed with an atomic `mkdir` so no two workers take it. Results, logs and
+`timings.csv` then merge by copying the `results/physon_*` trees together.
+
 Monitoring: `tasks.txt` (a task line disappears when a worker takes it),
 `logs/<group>_<scene>.log` (stage prints, `[train]`/`Training progress` lines),
 `timings.csv` (one row per finished task: tag, GPU, start, end, seconds, ok/fail),

@@ -277,15 +277,14 @@ def assign_gs_to_pcd(xyz, xyz_opacity, dataset, opt, pipe, cam_info, grid_size=0
         if torch.is_tensor(object_labels):
             object_labels = object_labels.cpu().numpy()
         
-        # Create one-hot encoding for object probabilities
-        # Assuming 3 classes: background (0), object 1 (1), object 2 (2)
-        object_probs = np.zeros((num_pts, 3), dtype=np.float32)
-        for i in range(num_pts):
-            if i < len(object_labels):
-                obj_id = int(object_labels[i])
-                object_probs[i, obj_id] = 1.0
-            else:
-                object_probs[i, 0] = 1.0  # Default to background
+        # Create one-hot encoding for object probabilities: background (0) + K objects (baselines)
+        from scene.gaussian_model import num_object_channels
+        n_ch = max(int(num_object_channels()), int(np.max(object_labels)) + 1 if len(object_labels) else 1)
+        object_probs = np.zeros((num_pts, n_ch), dtype=np.float32)
+        labels = np.zeros(num_pts, dtype=np.int64)  # default to background
+        m = min(num_pts, len(object_labels))
+        labels[:m] = np.asarray(object_labels[:m], dtype=np.int64)
+        object_probs[np.arange(num_pts), labels] = 1.0
         
         # Convert probabilities to logits and set in the Gaussian model
         # The Gaussian model expects _object_logits and computes probabilities via softmax
