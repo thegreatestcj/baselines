@@ -65,18 +65,20 @@ def main():
                                           for r in pj.get("gt_regions", []) if "material_parameters" in r)
                     break
         elif method == "mosiv":
-            pm = load(ROOT / "MOSIV" / "output" / "physon" / "multiobject_heterogeneous_new" / scene / "prediction_metrics.json")
+            pm = load(ROOT / "MOSIV" / "output" / "physon" / row["subset"] / scene / "prediction_metrics.json")
             if pm:
-                row["cd_obj"] = f"{fmt(pm['mean'].get('cd_obj0'))} / {fmt(pm['mean'].get('cd_obj1'))}"
+                ks = sorted(k for k in pm["mean"] if k.startswith("cd_obj"))
+                row["cd_obj"] = " / ".join(fmt(pm["mean"].get(k)) for k in ks)
                 fits = []
                 for o in pm.get("fitted") or []:
                     mp = o.get("mat_params", {})
                     fits.append(f"{o['name']}: " + ", ".join(f"{k}={v:.3g}" for k, v in mp.items() if k not in ("material", "rho")))
                 row["fit"] = "; ".join(fits)
-            md = load(ROOT / "MOSIV" / "data" / "PhysON_mosiv" / "multiobject_heterogeneous_new" / scene / "metadata.json")
+            md = load(ROOT / "MOSIV" / "data" / "PhysON_mosiv" / row["subset"] / scene / "metadata.json")
             if md:
-                row["gt"] = "; ".join(f"{md[k]['geometry']}: " + ", ".join(f"{kk}={vv:.3g}" for kk, vv in md[k]["gt_material_parameters"].items() if kk != "kind")
-                                      for k in ("obj1", "obj2") if k in md)
+                keys = [k for k in md if k.startswith("obj") and k[3:].isdigit()]
+                row["gt"] = "; ".join(f"{md[k]['geometry']}: " + ", ".join(f"{kk}={vv:.3g}" for kk, vv in md[k]["gt_material_parameters"].items() if isinstance(vv, (int, float)))
+                                      for k in sorted(keys, key=lambda k: int(k[3:])))
         rows.append(row)
     if not rows:
         print("no PhysON results under", root)

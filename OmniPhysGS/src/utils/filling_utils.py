@@ -67,7 +67,11 @@ def densify_grids(
 
             r = ti.max(r, sig[idx])
 
-        r = ti.ceil(r / grid_dx, dtype=int)
+        # baselines: cap the splat radius. Upstream loops over the full (2r+1)^3 neighbourhood of every
+        # Gaussian; a handful of large Gaussians (r ~ 30-100 cells on the PhysON scenes) then costs
+        # 10^10+ density evaluations and the kernel runs for hours. Beyond a few cells a Gaussian's
+        # contribution is flat and irrelevant for the fill threshold.
+        r = ti.min(ti.ceil(r / grid_dx, dtype=int), 4)
         for dx in range(-r, r + 1):
             for dy in range(-r, r + 1):
                 for dz in range(-r, r + 1):

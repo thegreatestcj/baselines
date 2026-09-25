@@ -94,12 +94,17 @@ def polar_rotation(F, iters=8):
     eye = torch.eye(3, device=F.device, dtype=F.dtype).expand_as(F)
     # particles whose F has collapsed (det ~ 0, e.g. an unstable expert) get R = I instead of a
     # singular inversion; their state is meaningless anyway and nan_to_num'd gradients handle the rest
-    ok = (torch.linalg.det(F).abs() > 1e-6).view(-1, 1, 1)
+    ok = (torch.isfinite(F).flatten(1).all(1) & (torch.linalg.det(F).abs() > 1e-6)).view(-1, 1, 1)
     X = torch.where(ok, F, eye)
     X = X * (math.sqrt(3.0) / X.norm(dim=(1, 2), keepdim=True).clamp_min(1e-6))
     for _ in range(iters):
-        X = 0.5 * (X + torch.linalg.inv(X).transpose(1, 2))
-    return torch.where(ok, X, eye)
+        try:
+            Xi = torch.linalg.inv(X)
+        except RuntimeError:  # an iterate went exactly singular (blown-up particle): pseudo-inverse
+            Xi = torch.linalg.pinv(X)
+        X = 0.5 * (X + Xi.transpose(1, 2))
+    good = ok & torch.isfinite(X).flatten(1).all(1).view(-1, 1, 1)
+    return torch.where(good, X, eye)
 
 
 PALETTE = np.array([[230, 40, 40], [40, 200, 220], [60, 180, 75], [240, 180, 30], [150, 60, 200],

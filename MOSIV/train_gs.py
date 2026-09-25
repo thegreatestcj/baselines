@@ -72,17 +72,15 @@ def save_deformed_trajectory(gaussians, deform, scene, dataset, iteration, start
         xyz_canonical_filtered = xyz_canonical[object_mask]
         opacity_filtered = opacity[object_mask.cpu().numpy()]
 
-        # Create colors based on object IDs
-        obj1_mask = (object_assignments == 1)[object_mask]
-        obj2_mask = (object_assignments == 2)[object_mask]
-
-        vertex_colors = np.zeros((len(xyz_canonical_filtered), 3), dtype=np.uint8)
-        vertex_colors[obj1_mask.cpu().numpy()] = [255, 200, 40]  # Object 1: yellow/gold
-        vertex_colors[obj2_mask.cpu().numpy()] = [1, 68, 33]     # Object 2: green
+        # Create colors based on object IDs (baselines: K objects, shared palette)
+        from utils.object_palette import obj_color_u8
+        kept_ids = object_assignments[object_mask].cpu().numpy()
+        palette = np.asarray([obj_color_u8(i) for i in range(int(object_probs.shape[1]))], dtype=np.uint8)
+        vertex_colors = palette[kept_ids]
 
         print(f"  Kept {len(xyz_canonical_filtered)}/{len(xyz_canonical)} Gaussians")
-        print(f"  Object 1: {obj1_mask.sum().item()} Gaussians")
-        print(f"  Object 2: {obj2_mask.sum().item()} Gaussians")
+        for k in range(1, int(object_probs.shape[1])):
+            print(f"  Object {k}: {int((kept_ids == k).sum())} Gaussians")
 
         xyz_canonical = xyz_canonical_filtered
         opacity = opacity_filtered
@@ -673,8 +671,8 @@ def training_MO(dataset, opt, pipe, testing_iterations, saving_iterations):
             else:
                 # Already a tensor from Camera class
                 gt_mask = viewpoint_cam.object_mask.cuda().float()
-                if gt_mask.dim() == 3 and gt_mask.shape[-1] == 3:
-                    gt_mask = gt_mask.permute(2, 0, 1)  # [H, W, 3] -> [3, H, W]
+                if gt_mask.dim() == 3 and gt_mask.shape[0] != rendered_mask.shape[0] and gt_mask.shape[-1] == rendered_mask.shape[0]:
+                    gt_mask = gt_mask.permute(2, 0, 1)  # [H, W, K+1] -> [K+1, H, W]
             
             # Use same loss structure as RGB: L1 + SSIM
             mask_l1 = l1_loss(rendered_mask, gt_mask)
@@ -832,29 +830,19 @@ def training_MO(dataset, opt, pipe, testing_iterations, saving_iterations):
                     else:
                         # Already a tensor from Camera class
                         gt_mask = viewpoint_cam.object_mask.cuda().float()
-                        if gt_mask.dim() == 3 and gt_mask.shape[-1] == 3:
-                            gt_mask = gt_mask.permute(2, 0, 1)  # [H, W, 3] -> [3, H, W]
+                        if gt_mask.dim() == 3 and gt_mask.shape[0] != rendered_mask.shape[0] and gt_mask.shape[-1] == rendered_mask.shape[0]:
+                            gt_mask = gt_mask.permute(2, 0, 1)  # [H, W, K+1] -> [K+1, H, W]
                     
-                    # Save individual object masks
-                    cat_obj1 = torch.cat([rendered_mask[1:2], gt_mask[1:2]], dim=2)  # Object 1
-                    torchvision.utils.save_image(cat_obj1, os.path.join(dataset.model_path, f'img/obj1_mask_ren_gt_{iteration}.png'))
-                    
-                    cat_obj2 = torch.cat([rendered_mask[2:3], gt_mask[2:3]], dim=2)  # Object 2  
-                    torchvision.utils.save_image(cat_obj2, os.path.join(dataset.model_path, f'img/obj2_mask_ren_gt_{iteration}.png'))
-                    
-                    # Combined RGB visualization: obj1=red, obj2=green, bg=blue
-                    rendered_mask_rgb = torch.stack([
-                        rendered_mask[1],  # Red channel: Object 1
-                        rendered_mask[2],  # Green channel: Object 2
-                        rendered_mask[0],  # Blue channel: Background
-                    ])
-                    gt_mask_rgb = torch.stack([
-                        gt_mask[1],  # Red channel: Object 1
-                        gt_mask[2],  # Green channel: Object 2
-                        gt_mask[0],  # Blue channel: Background
-                    ])
-                    cat_mask_rgb = torch.cat([rendered_mask_rgb, gt_mask_rgb], dim=2)
-                    torchvision.utils.save_image(cat_mask_rgb, os.path.join(dataset.model_path, f'img/mask_rgb_ren_gt_{iteration}.png'))
+                    # Save individual object masks (baselines: K objects)
+                    for k in range(1, rendered_mask.shape[0]):
+                        cat_obj = torch.cat([rendered_mask[k:k + 1], gt_mask[k:k + 1]], dim=2)
+                        torchvision.utils.save_image(cat_obj, os.path.join(dataset.model_path, f'img/obj{k}_mask_ren_gt_{iteration}.png'))
+                    # Combined RGB visualization of the first two objects: obj1=red, obj2=green, bg=blue
+                    if rendered_mask.shape[0] >= 3:
+                        rendered_mask_rgb = torch.stack([rendered_mask[1], rendered_mask[2], rendered_mask[0]])
+                        gt_mask_rgb = torch.stack([gt_mask[1], gt_mask[2], gt_mask[0]])
+                        cat_mask_rgb = torch.cat([rendered_mask_rgb, gt_mask_rgb], dim=2)
+                        torchvision.utils.save_image(cat_mask_rgb, os.path.join(dataset.model_path, f'img/mask_rgb_ren_gt_{iteration}.png'))
             
             # Optimizer step
             if iteration < opt.iterations:

@@ -18,7 +18,7 @@ source env.sh
 STORE=${1:-$PWD/data_store}
 REPO=HoneyLane/gic-baselines-data
 PHYSON_REPO=cmu-robotics-institute/PhysON
-PHYSON_SUBSETS=${PHYSON_SUBSETS-singleobject_heterogeneous_new multiobject_heterogeneous_new}
+PHYSON_SUBSETS=${PHYSON_SUBSETS-singleobject_heterogeneous multiobject_heterogeneous}
 
 # hf CLI from the baselines env (installed by env/setup_env.sh), with a
 # PATH fallback for people who bring their own.

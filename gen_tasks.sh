@@ -155,33 +155,39 @@ physon_test_cam() { # <scene dir>
 # eval/overlay_video.py writes <out>.mp4, <out>_frames.png, <out>_iou.json.
 
 if [[ " $ALL " == *" mosiv_physon_mo "* ]]; then
-  # MOSIV (Liu et al., ICLR 2026; vendored MOSIV/, runs in the main env) on the two-object PhysON
-  # multiobject_heterogeneous_new scenes (the released code handles exactly two objects). Per
-  # scene: converter (GenesisMO layout + instance masks from the GT particles + config from
+  # MOSIV (Liu et al., ICLR 2026; vendored MOSIV/, generalised from its released two-object code to
+  # K objects, runs in the main env) on the PhysON multi-object scenes. PHYSON_MO_SUBSET selects the
+  # subset: multiobject_heterogeneous (default; 10 scenes, 2-6 objects each, 24 fps, gravity only)
+  # or multiobject_heterogeneous_new (20 scenes, 2-4 objects, 80 fps, declared force fields).
+  # Per scene: converter (GenesisMO layout + instance masks from the GT particles + config from
   # eval/convert_physon_to_mosiv.py) -> train_dynamic_MO (object-aware dynamic 3DGS, lifting,
-  # velocity + per-object parameter fit; external force applied as known input) ->
+  # velocity + per-object parameter fit; a declared external force is applied as known input) ->
   # export_prediction (rollout, plys, held-out-camera silhouettes) -> eval_scene -> overlay.
   # MOSIV_PHYSON_CONVERT_ARGS: converter options (e.g. --iter_cnt 100 --n_frames 32 --force_mode none).
   source env.sh
-  mosiv_physon_task() { # scene
-    local sub=multiobject_heterogeneous_new s=$1
+  mosiv_physon_task() { # subset scene
+    local sub=$1 s=$2
     local src="data/PhysON/$sub/$s" conv="data/PhysON_mosiv/$sub/$s" out="output/physon/$sub/$s" cfg="config/physon/$sub/$s.json"
     physon_scene_ready "MOSIV/$src" || return 0
-    local nobj; nobj=$(grep -o '"n_objects": *[0-9]*' "MOSIV/$src/metadata.json" | grep -o '[0-9]*$')
-    [ "$nobj" = 2 ] || { echo "gen_tasks: $s has $nobj objects; MOSIV handles two, skipping" >&2; return 0; }
     local cam; cam=$(physon_test_cam "MOSIV/$src")
-    local res="../results/physon_multiobject/mosiv/$s"
+    local res="../results/physon_$sub/mosiv/$s"
     emit "mosiv_physon:$sub/$s" "$PWD/MOSIV" "$out/DONE" \
       "$BASELINES_PY ../eval/convert_physon_to_mosiv.py --scene_data $src --out $conv --config_out $cfg ${MOSIV_PHYSON_CONVERT_ARGS:-} && $BASELINES_PY train_dynamic_MO.py -c $cfg -s $conv -m $out --reg_scale --reg_alpha && $BASELINES_PY export_prediction.py -c $cfg -s $conv -m $out --view_id $cam && $BASELINES_PY ../eval/eval_scene.py --pred_plys '$out/mpm/simulation_*.ply' --gt_plys '$src/point_clouds/*.ply' --out $res.json && $BASELINES_PY ../eval/overlay_video.py --gt_rgba '$src/data/a_${cam}_*.png' --pred_mask '$out/img_render/${cam}_*_mask.png' --title MOSIV --subtitle '$sub/$s' --out ${res}_overlay && touch $out/DONE"
   }
-  for i in {0..19}; do mosiv_physon_task "0_$i"; done
+  sub=${PHYSON_MO_SUBSET:-multiobject_heterogeneous}
+  for d in MOSIV/data/PhysON/$sub/*/; do
+    [ -f "$d/metadata.json" ] || continue
+    mosiv_physon_task "$sub" "$(basename "$d")"
+  done
 fi
 
 if [[ " $ALL " == *" omniphysgs_physon_het "* ]]; then
-  # OmniPhysGS on PhysON singleobject_heterogeneous_new (12 scenes; two
-  # material regions per object, forced or gravity-only, plus a two-phase
-  # fluid and a sand+pusher scene). PHYSON_HET_SUBSET=singleobject_heterogeneous
-  # selects the older 14-scene variant. Per scene: converter (writes the
+  # OmniPhysGS on the PhysON heterogeneous single-object scenes (two material
+  # regions per object, forced or gravity-only). PHYSON_HET_SUBSET selects the
+  # subset: singleobject_heterogeneous (default; 14 scenes at 24 fps = 200
+  # substeps/frame, so train.epochs defaults to 6 there, ~12 h/scene) or
+  # singleobject_heterogeneous_new (12 scenes at 96 fps, 10 epochs, ~7 h/scene).
+  # Per scene: converter (writes the
   # scene package: static 3DGS dataset for frame 0, scene.json, config.yaml)
   # -> recon_static (frame-0 3DGS) -> fit (multi-view supervised material
   # + initial-velocity fit, free rollout, renders) -> eval_scene.
@@ -190,11 +196,14 @@ if [[ " $ALL " == *" omniphysgs_physon_het "* ]]; then
   # at generation time. Own venv over the masiv env (env/setup_env.sh omniphysgs).
   source env.sh
   if [ -x "${OMNIPHYSGS_PY:-}" ]; then
-    sub=${PHYSON_HET_SUBSET:-singleobject_heterogeneous_new}
+    sub=${PHYSON_HET_SUBSET:-singleobject_heterogeneous}
     case "$sub" in
-      singleobject_heterogeneous) scenes="0_3 0_4 1_3 1_4 2_0 2_1 3_0 3_1 3_2 3_3 4_0 4_1 4_2 4_3";;
-      *) scenes="0_0 0_1 0_2 0_3 0_4 1_0 1_1 1_2 1_3 1_4 2_0 3_0";;
+      singleobject_heterogeneous) omni_default_args="train.epochs=6";;
+      *) omni_default_args="";;
     esac
+    OMNIPHYSGS_PHYSON_ARGS="${OMNIPHYSGS_PHYSON_ARGS-$omni_default_args}"
+    scenes=""
+    for d in OmniPhysGS/data/PhysON/$sub/*/; do [ -f "$d/metadata.json" ] && scenes="$scenes $(basename "$d")"; done
     omniphysgs_physon_task() { # subset scene
       local sub=$1 s=$2
       local src="data/PhysON/$sub/$s" out="outputs/PhysON/$sub/$s"

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-"""Convert a two-object PhysON scene into MOSIV's GenesisMO input format and write its config.
+"""Convert a multi-object PhysON scene into MOSIV's GenesisMO input format and write its config.
 
 MOSIV (Liu et al., ICLR 2026; vendored at MOSIV/) reads the "GenesisMO" layout:
 
   <out>/all_data.json                     -> symlink to the PhysON scene file (PAC-NeRF cameras)
   <out>/data/                             -> symlink to the PhysON data/ (m_<cam>_<frame>.png on white, r_*)
-  <out>/masks/o_<cam>_<frame>.npy         uint8 [H,W,2] {0,255} instance masks (obj1, obj2)
-  <out>/point_clouds/{0,1}/<frame>.ply    per-object GT particles (evaluation)
-  <out>/metadata.json                     GenesisMO-style scene description (bounds, obj1/obj2, fps, ...)
+  <out>/masks/o_<cam>_<frame>.npy         uint8 [H,W,K] {0,255} instance masks, one channel per object
+  <out>/point_clouds/<k>/<frame>.ply      per-object GT particles (evaluation), k = 0..K-1
+  <out>/metadata.json                     GenesisMO-style scene description (bounds, obj1..objK, fps, ...)
   <config_out>                            MOSIV config json (data bounds, gs, physics.sub_objects, ...)
 
 PhysON multi-object scenes ship a whole-scene foreground alpha (`a_*.png`) but no instance masks.
@@ -18,11 +18,14 @@ particles are otherwise only used for the per-object bounding boxes (the PAC-NeR
 prior) and for evaluation. Material classes come from metadata (oracle class, as in MOSIV); the
 initial parameter values are MOSIV's per-class defaults, never the GT values.
 
-MOSIV's released code handles exactly two objects; scenes with another object count are rejected.
+Both PhysON metadata schemas are understood: `objects[k].particle_range` (multiobject_heterogeneous)
+and `objects[k]` + `region_offsets` (multiobject_heterogeneous_new). MOSIV's released code handles
+exactly two objects; the vendored copy was generalised to K objects (ids 1..K, config order), so
+any object count runs. Scenes without a force_field.npz run with force_mode none.
 
-  python eval/convert_physon_to_mosiv.py --scene_data MOSIV/data/PhysON/multiobject_heterogeneous_new/0_11 \
-      --out MOSIV/data/PhysON_mosiv/multiobject_heterogeneous_new/0_11 \
-      --config_out MOSIV/config/physon/multiobject_heterogeneous_new/0_11.json
+  python eval/convert_physon_to_mosiv.py --scene_data MOSIV/data/PhysON/multiobject_heterogeneous/0_0 \
+      --out MOSIV/data/PhysON_mosiv/multiobject_heterogeneous/0_0 \
+      --config_out MOSIV/config/physon/multiobject_heterogeneous/0_0.json
 """
 import argparse
 import json
@@ -57,7 +60,13 @@ TRAINING_PARAMS = {
     "kappa": dict(lr_decay=False, init_lr=0.2, final_lr=0.1, max_steps=100),
 }
 MOSIV_MATERIAL_NAME = {10: "elastic", 12: "elastoplastic", 13: "sand", 11: "fluid", 14: "non_newtonian"}
-OBJ_COLORS = [[1.0, 0.784, 0.157], [0.004, 0.267, 0.129]]
+# same list as MOSIV/utils/object_palette.py (kept in sync by hand; eval/ must not import MOSIV/)
+OBJ_COLORS = [[1.0, 0.784, 0.157], [0.004, 0.267, 0.129], [0.122, 0.467, 0.706], [0.839, 0.153, 0.157],
+              [0.580, 0.404, 0.741], [0.549, 0.337, 0.294], [0.890, 0.467, 0.761], [0.090, 0.745, 0.812]]
+
+
+def obj_color(k):  # k = 0-based object index
+    return OBJ_COLORS[k % len(OBJ_COLORS)]
 
 
 def parse_args():
@@ -70,7 +79,8 @@ def parse_args():
     p.add_argument("--vel_iter_cnt", type=int, default=80)
     p.add_argument("--gs_iterations", type=int, default=40000)
     p.add_argument("--bc_style", type=int, default=2, help="ground collider: 0 sticky, 1 slip, 2 separate (PhysON floors separate)")
-    p.add_argument("--force_mode", default="oracle", choices=["oracle", "none"])
+    p.add_argument("--force_mode", default="oracle", choices=["oracle", "none"],
+                   help="oracle applies the scene's declared force field; scenes without one always run as none")
     p.add_argument("--traj_save_interval", type=int, default=10)
     p.add_argument("--mask_radius_px", type=int, default=6)
     p.add_argument("--bbox_margin", type=float, default=0.05, help="m around the per-object frame-0 bbox (init points)")
@@ -89,6 +99,26 @@ def relative_symlink(link: Path, target: Path):
     link.symlink_to(rel)
 
 
+def scene_objects(meta):
+    """[(name, kind, material dict, (start, end))] per object, in metadata order (both schemas)."""
+    objs = meta.get("objects") or []
+    offsets = meta.get("region_offsets")
+    out = []
+    for k, o in enumerate(objs):
+        mat = o.get("material") or o.get("material_parameters") or {}
+        if o.get("particle_range") is not None:
+            s, e = int(o["particle_range"][0]), int(o["particle_range"][1])
+        elif offsets is not None and len(offsets) == len(objs) + 1:
+            s, e = int(offsets[k]), int(offsets[k + 1])
+        else:
+            raise SystemExit(f"cannot locate the particles of object {k}: no particle_range and no region_offsets")
+        name = o.get("asset") or o.get("role") or o.get("name") or f"obj{k + 1}"
+        out.append((str(name), str(mat.get("kind", "elastic")), mat, (s, e)))
+    if not out:
+        raise SystemExit("metadata.json lists no objects")
+    return out
+
+
 def instance_masks(scene, x_objs, cam_id, frame, radius_px):
     """[H,W,K] uint8 {0,255}: z-buffered splats of every object's GT particles, filled inside the
     foreground alpha (a_<cam>_<frame>.png) with the label of the nearest covered pixel."""
@@ -102,6 +132,8 @@ def instance_masks(scene, x_objs, cam_id, frame, radius_px):
     disk = (dy ** 2 + dx ** 2) <= radius_px ** 2
     dy, dx = dy[disk], dx[disk]
     for k, x in enumerate(x_objs):
+        if len(x) == 0:
+            continue
         xc = x @ c.R + c.T                       # camera coords (3DGS: R stored transposed)
         z = xc[:, 2]
         ok = z > 1e-4
@@ -130,26 +162,26 @@ def main():
     src = Path(a.scene_data).resolve()
     scene = load_scene(src)
     meta = scene.metadata
-    objs = meta.get("objects") or []
-    offsets = meta.get("region_offsets")
-    if len(objs) != 2 or offsets is None or len(offsets) != 3:
-        raise SystemExit(f"MOSIV's released code handles exactly two objects; {src.name} has {len(objs)} "
-                         f"(region_offsets {offsets}). Pick a two-object scene.")
+    objs = scene_objects(meta)
+    K = len(objs)
     out = Path(a.out).resolve(); out.mkdir(parents=True, exist_ok=True)
     relative_symlink(out / "all_data.json", src / "all_data.json")
     relative_symlink(out / "data", src / "data")
+    print(f"[scene] {src.parent.name}/{src.name}: {K} objects " +
+          ", ".join(f"{n} ({kind}, {e - s} particles)" for n, kind, _, (s, e) in objs) +
+          f"; {scene.n_frames} frames @ {scene.sim_fps:g} fps, test cams {scene.test_cam_ids}, floor {scene.floor_height}")
 
     # ---- per-object GT particles (evaluation) and bounds
     n_frames_total = scene.n_frames
     xs = [read_ply_xyz(scene.gt_ply_path(f)) for f in range(n_frames_total)]
-    per_obj = [[x[offsets[k]:offsets[k + 1]] for x in xs] for k in range(2)]
-    for k in range(2):
+    per_obj = [[x[s:e] for x in xs] for (_, _, _, (s, e)) in objs]
+    for k in range(K):
         d = out / "point_clouds" / str(k); d.mkdir(parents=True, exist_ok=True)
         for f in range(n_frames_total):
             if not (d / f"{f}.ply").exists() or a.force:
                 write_ply_xyz(d / f"{f}.ply", per_obj[k][f])
-    obj_bbox = [(per_obj[k][0].min(0) - a.bbox_margin, per_obj[k][0].max(0) + a.bbox_margin) for k in range(2)]
-    for k in range(2):
+    obj_bbox = [(per_obj[k][0].min(0) - a.bbox_margin, per_obj[k][0].max(0) + a.bbox_margin) for k in range(K)]
+    for k in range(K):
         obj_bbox[k][0][1] = max(obj_bbox[k][0][1], scene.floor_height)
     all_x = np.concatenate([np.concatenate(o, 0) for o in per_obj], 0)
     lo, hi = all_x.min(0) - 0.15, all_x.max(0) + 0.15
@@ -160,10 +192,10 @@ def main():
     todo = [(c, f) for c in sorted(scene.cameras) for f in range(n_frames_total)
             if a.force or not (mdir / f"o_{c}_{f}.npy").exists()]
     if todo:
-        print(f"[masks] generating {len(todo)} instance masks (radius {a.mask_radius_px} px)")
+        print(f"[masks] generating {len(todo)} instance masks (radius {a.mask_radius_px} px, {K} channels)")
         cov = []
         for i, (c, f) in enumerate(todo):
-            m = instance_masks(scene, [per_obj[0][f], per_obj[1][f]], c, f, a.mask_radius_px)
+            m = instance_masks(scene, [per_obj[k][f] for k in range(K)], c, f, a.mask_radius_px)
             np.save(mdir / f"o_{c}_{f}.npy", m)
             if f == 0:
                 from PIL import Image
@@ -177,7 +209,10 @@ def main():
         from PIL import Image
         for c in scene.test_cam_ids + scene.train_cam_ids[:1]:
             m = np.load(mdir / f"o_{c}_0.npy")
-            vis = np.zeros((*m.shape[:2], 3), np.uint8); vis[..., 0] = m[..., 0]; vis[..., 1] = m[..., 1]
+            vis = np.zeros((*m.shape[:2], 3), np.uint8)
+            for k in range(m.shape[2]):
+                col = np.asarray(obj_color(k)) * 255
+                vis[m[..., k] > 0] = col.astype(np.uint8)
             Image.fromarray(vis).save(out / "masks_vis" / f"vis_{c}_0.png")
     except Exception as e:  # visualisation only
         print(f"[masks] vis skipped: {e}")
@@ -187,31 +222,30 @@ def main():
     mpm_iter = 200
     md = dict(
         source="PhysON " + str(src.parent.name) + "/" + src.name, format="GenesisMO (MOSIV) export of a PhysON scene",
-        gravity=float(scene.gravity[1]), dt=1.0 / (fps * mpm_iter), fps=fps, video_fps=meta.get("video_fps"),
+        n_objects=K, gravity=float(scene.gravity[1]), dt=1.0 / (fps * mpm_iter), fps=fps, video_fps=meta.get("video_fps"),
         mpm_lower_bound=lo.tolist(), mpm_upper_bound=hi.tolist(), particle_size=float(scene.particle_size),
         resolution=meta.get("resolution", [800, 800]), ground_friction=0.0, floor_height=float(scene.floor_height),
         collide_time=0.0, collide_loc=[0.0, 0.0, 0.0],
-        color_obj0=OBJ_COLORS[0], color_obj1=OBJ_COLORS[1], camera_ids=sorted(scene.cameras), test_cam_ids=scene.test_cam_ids,
-        physon=dict(objects=objs, region_offsets=offsets, regions=meta.get("regions"), external_force=meta.get("external_force")),
+        colors=[obj_color(k) for k in range(K)], camera_ids=sorted(scene.cameras), test_cam_ids=scene.test_cam_ids,
+        physon=dict(objects=meta.get("objects"), region_offsets=meta.get("region_offsets"), regions=scene.regions,
+                    external_force=meta.get("external_force")),
     )
-    for k, o in enumerate(objs):
-        mat = o.get("material", {}); kind = str(mat.get("kind", "elastic"))
+    for k, (name, kind, mat, (s, e)) in enumerate(objs):
         code = MATERIAL_CODE.get(kind)
         if code is None:
             raise SystemExit(f"unsupported PhysON material kind {kind!r} for MOSIV")
-        md[f"obj{k + 1}"] = dict(material=MOSIV_MATERIAL_NAME[code], material_kind_physon=kind, geometry=o.get("asset", f"obj{k + 1}"),
-                                 rho=float(mat.get("rho", 1000.0)), surface_color=OBJ_COLORS[k],
-                                 initial_location=o.get("position"), initial_velocity=o.get("velocity"),
-                                 gt_material_parameters=mat, n_particles=int(offsets[k + 1] - offsets[k]))
+        md[f"obj{k + 1}"] = dict(material=MOSIV_MATERIAL_NAME[code], material_kind_physon=kind, geometry=name,
+                                 rho=float(mat.get("rho", 1000.0)), surface_color=obj_color(k),
+                                 gt_material_parameters=mat, n_particles=int(e - s), particle_range=[s, e])
     json.dump(md, open(out / "metadata.json", "w"), indent=1)
 
     # ---- MOSIV config json (mirrors MOSIV/generate_configs.py; timing from the PhysON physical clock)
     sub_objects, trainable = [], []
-    for k, o in enumerate(objs):
-        code = MATERIAL_CODE[str(o["material"]["kind"])]
+    for k, (name, kind, mat, _) in enumerate(objs):
+        code = MATERIAL_CODE[kind]
         dp = dict(DEFAULT_PARAMS[code]); trainable += dp.pop("trainable")
-        sub_objects.append(dict(name=o.get("asset", f"obj{k + 1}"), object_id=k + 1, material=code, **dp,
-                                rho=float(o["material"].get("rho", 1000.0)), init_vel=[0.0, 0.0, 0.0], color=OBJ_COLORS[k]))
+        sub_objects.append(dict(name=name, object_id=k + 1, material=code, **dp,
+                                rho=float(mat.get("rho", 1000.0)), init_vel=[0.0, 0.0, 0.0], color=obj_color(k)))
     codes = [s["material"] for s in sub_objects]
     if 13 in codes:
         voxel, dgs, dmin, dmax = 0.015, 0.12, 0.67, 0.8
@@ -222,19 +256,25 @@ def main():
     else:
         voxel, dgs, dmin, dmax = 0.02, 0.1, 0.5, 0.7
     n_frames = int(a.n_frames or n_frames_total)
+    force_mode = a.force_mode
+    if force_mode == "oracle" and not (src / "force_field.npz").exists():
+        print("[force] scene has no force_field.npz (gravity only): force_mode none")
+        force_mode = "none"
     # paths in the config are relative to the MOSIV dir (train_dynamic_MO.py / export_prediction.py run there)
     mosiv_root = Path(__file__).resolve().parent.parent / "MOSIV"
     relm = lambda p: os.path.relpath(Path(p).resolve(), mosiv_root)
+    data = dict(xyz_min=lo.tolist(), xyz_max=hi.tolist())
+    for k in range(K):
+        data[f"obj{k + 1}_xyz_min"] = obj_bbox[k][0].tolist()
+        data[f"obj{k + 1}_xyz_max"] = obj_bbox[k][1].tolist()
     cfg = dict(
-        data=dict(xyz_min=lo.tolist(), xyz_max=hi.tolist(),
-                  obj1_xyz_min=obj_bbox[0][0].tolist(), obj1_xyz_max=obj_bbox[0][1].tolist(),
-                  obj2_xyz_min=obj_bbox[1][0].tolist(), obj2_xyz_max=obj_bbox[1][1].tolist()),
+        data=data,
         gs=dict(eval=True, is_blender=True, timenet=True, test_iterations=[5000, 6000, 7000],
                 save_iterations=sorted(set([7000, 10000, 20000, 30000, a.gs_iterations])), quiet=False,
                 iterations=a.gs_iterations, enable_mask_training=True, mask_loss_weight=0.5),
         physics=dict(
             id=src.name, fps=fps, dt=1.0 / (fps * mpm_iter), gravity=scene.gravity.tolist(), ground_friction=0.0,
-            sub_objects=sub_objects, voxel_size=voxel, mpm_iter_cnt=mpm_iter,
+            n_objects=K, sub_objects=sub_objects, voxel_size=voxel, mpm_iter_cnt=mpm_iter,
             bc=dict(ground=[[0.0, float(scene.floor_height), 0.0], [0.0, 1.0, 0.0], int(a.bc_style)]),
             density_grid_size=dgs, density_min_th=dmin, density_max_th=dmax, opacity_threshold=0.01, random_sample=False,
             img_loss=True, geo_loss=True, w_img=0.0, w_alp=1.0, w_geo=1.0,
@@ -242,7 +282,7 @@ def main():
             iter_cnt=int(a.iter_cnt), vel_iter_cnt=int(a.vel_iter_cnt), vel_estimation_frames=4, vel_lr=0.05,
             init_vel=[0.0, 0.0, 0.0], collide_time=0.0, collide_loc=[0.0, 0.0, 0.0], n_frames=n_frames,
             traj_save_interval=int(a.traj_save_interval),
-            force_mode=a.force_mode, force_npz=relm(src / "force_field.npz"), force_json=relm(src / "force_field.json"),
+            force_mode=force_mode, force_npz=relm(src / "force_field.npz"), force_json=relm(src / "force_field.json"),
             force_h5=relm(src / "physics.h5"),
             physon_scene=relm(src), test_cam_ids=scene.test_cam_ids,
         ),
@@ -250,7 +290,7 @@ def main():
     Path(a.config_out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(cfg, open(a.config_out, "w"), indent=2)
     print(f"[done] data {out}\n[done] config {a.config_out}: objects {[(s['name'], s['material']) for s in sub_objects]}, "
-          f"fps {fps}, n_frames {n_frames}, iter_cnt {a.iter_cnt}, bounds {np.round(lo, 3).tolist()}..{np.round(hi, 3).tolist()}")
+          f"fps {fps}, n_frames {n_frames}, iter_cnt {a.iter_cnt}, force {force_mode}, bounds {np.round(lo, 3).tolist()}..{np.round(hi, 3).tolist()}")
 
 
 if __name__ == "__main__":

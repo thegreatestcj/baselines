@@ -22,6 +22,19 @@ from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 
 
+# baselines (PhysON): the object logits carry background + K object channels; set once per run
+_NUM_OBJECT_CHANNELS = 3
+
+
+def set_num_objects(k):
+    global _NUM_OBJECT_CHANNELS
+    _NUM_OBJECT_CHANNELS = int(k) + 1
+
+
+def num_object_channels():
+    return _NUM_OBJECT_CHANNELS
+
+
 class GaussianModel:
     def __init__(self, sh_degree: int):
 
@@ -126,7 +139,7 @@ class GaussianModel:
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
 
         # Initialize object logits for multi-object training
-        object_logits = torch.zeros((fused_point_cloud.shape[0], 3), dtype=torch.float, device="cuda")
+        object_logits = torch.zeros((fused_point_cloud.shape[0], _NUM_OBJECT_CHANNELS), dtype=torch.float, device="cuda")
         self._object_logits = nn.Parameter(object_logits.requires_grad_(True))
             
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
@@ -269,7 +282,7 @@ class GaussianModel:
                 object_logits[:, idx] = np.asarray(plydata.elements[0][attr_name])
         else:
             # Initialize with zeros if not present (for backward compatibility)
-            object_logits = np.zeros((xyz.shape[0], 3))
+            object_logits = np.zeros((xyz.shape[0], _NUM_OBJECT_CHANNELS))
 
         self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(True))
         self._features_dc = nn.Parameter(

@@ -138,17 +138,25 @@ def render(viewpoint_camera, pc: GaussianModel, pipe, bg_color: torch.Tensor, d_
         rotations_copy = rotations.clone().detach() if rotations is not None else None
         cov3D_precomp_copy = cov3D_precomp.clone().detach() if cov3D_precomp is not None else None
         
-        # Render mask using copied geometry tensors - only object_probs has gradients
-        rendered_mask, _, _, _ = rasterizer(
-            means3D=means3D_copy,
-            means2D=means2D_copy,
-            shs=None,
-            colors_precomp=object_probs,
-            opacities=opacity_copy,
-            scales=scales_copy,
-            rotations=rotations_copy,
-            cov3D_precomp=cov3D_precomp_copy)
-        
-        results["mask"] = rendered_mask  # [3, H, W] with channels for [bg, obj1, obj2]
+        # Render mask using copied geometry tensors - only object_probs has gradients.
+        # baselines (PhysON): the rasterizer splats 3 channels per pass, so background + K object
+        # probabilities are rendered in ceil((K+1)/3) passes (K = 2 is the single upstream pass).
+        chunks = []
+        for c0 in range(0, object_probs.shape[1], 3):
+            cols = object_probs[:, c0:c0 + 3]
+            pad = 3 - cols.shape[1]
+            if pad > 0:
+                cols = torch.cat([cols, torch.zeros(cols.shape[0], pad, device=cols.device, dtype=cols.dtype)], 1)
+            rendered_chunk, _, _, _ = rasterizer(
+                means3D=means3D_copy,
+                means2D=means2D_copy,
+                shs=None,
+                colors_precomp=cols,
+                opacities=opacity_copy,
+                scales=scales_copy,
+                rotations=rotations_copy,
+                cov3D_precomp=cov3D_precomp_copy)
+            chunks.append(rendered_chunk[:3 - pad])
+        results["mask"] = torch.cat(chunks, 0)  # [K+1, H, W] with channels for [bg, obj1, ..., objK]
 
     return results

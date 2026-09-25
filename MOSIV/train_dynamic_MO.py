@@ -75,13 +75,14 @@ def fix_misclassified_particles_connected_components(gaussians, distance_thresho
 
         print(f"\nFixing misclassified particles using connected components")
         print(f"Distance threshold: {distance_threshold:.4f} world units")
-        print(f"Initial distribution - Background: {(object_assignments==0).sum()}, "
-              f"Obj1: {(object_assignments==1).sum()}, Obj2: {(object_assignments==2).sum()}")
+        classes = list(range(1, object_probs.shape[1]))  # baselines: K objects
+        print("Initial distribution - Background: {}, ".format((object_assignments == 0).sum()) +
+              ", ".join(f"Obj{c}: {(object_assignments == c).sum()}" for c in classes))
 
         corrected_assignments = object_assignments.copy()
 
         # Process each object class separately
-        for obj_class in [1, 2]:
+        for obj_class in classes:
             # Get points belonging to this class
             class_mask = (object_assignments == obj_class)
             if class_mask.sum() == 0:
@@ -111,29 +112,25 @@ def fix_misclassified_particles_connected_components(gaussians, distance_thresho
             if len(small_clusters) > 0:
                 # Get indices of points in small clusters
                 class_indices = np.where(class_mask)[0]
+                others = [(c, positions[object_assignments == c]) for c in classes
+                          if c != obj_class and (object_assignments == c).sum() > 0]
                 for cluster_id in small_clusters:
                     cluster_points = class_indices[labels == cluster_id]
-
-                    # Find nearest points from other class
-                    other_class = 2 if obj_class == 1 else 1
-                    other_mask = (object_assignments == other_class)
-
-                    if other_mask.sum() > 0:
-                        other_positions = positions[other_mask]
-
-                        # For each point in small cluster, check distance to other class
-                        for point_idx in cluster_points:
-                            point_pos = positions[point_idx:point_idx+1]
-                            distances = np.linalg.norm(other_positions - point_pos, axis=1)
-
-                            # If close enough to other class, reassign
-                            if distances.min() < distance_threshold * 2:
-                                corrected_assignments[point_idx] = other_class
+                    # Reassign each point to the nearest other class when it is close enough
+                    for point_idx in cluster_points:
+                        point_pos = positions[point_idx:point_idx + 1]
+                        best_c, best_d = None, np.inf
+                        for c, opos in others:
+                            d = np.linalg.norm(opos - point_pos, axis=1).min()
+                            if d < best_d:
+                                best_c, best_d = c, d
+                        if best_c is not None and best_d < distance_threshold * 2:
+                            corrected_assignments[point_idx] = best_c
 
                 print(f"    Reassigned {len(small_clusters)} small clusters")
 
-        print(f"Final distribution - Background: {(corrected_assignments==0).sum()}, "
-              f"Obj1: {(corrected_assignments==1).sum()}, Obj2: {(corrected_assignments==2).sum()}")
+        print("Final distribution - Background: {}, ".format((corrected_assignments == 0).sum()) +
+              ", ".join(f"Obj{c}: {(corrected_assignments == c).sum()}" for c in classes))
 
         return torch.tensor(corrected_assignments, dtype=torch.long, device=device)
 
@@ -155,8 +152,8 @@ def fix_misclassified_particles(gaussians, k_neighbors=50, min_ratio=0.55, itera
         object_assignments = torch.argmax(object_probs, dim=1).numpy()  # [N] with values 0,1,2
 
         print(f"\nFixing misclassified particles using KNN with k={k_neighbors}")
-        print(f"Initial distribution - Background: {(object_assignments==0).sum()}, "
-              f"Obj1: {(object_assignments==1).sum()}, Obj2: {(object_assignments==2).sum()}")
+        print("Initial distribution - Background: {}, ".format((object_assignments == 0).sum()) +
+              ", ".join(f"Obj{c}: {(object_assignments == c).sum()}" for c in range(1, object_probs.shape[1])))
 
         # Build KNN model
         nbrs = NearestNeighbors(n_neighbors=min(k_neighbors, len(positions)), algorithm='auto')
@@ -184,18 +181,11 @@ def fix_misclassified_particles(gaussians, k_neighbors=50, min_ratio=0.55, itera
                 if len(non_bg_neighbors) == 0:
                     continue
 
-                # Count occurrences of each object label
-                obj1_count = (non_bg_neighbors == 1).sum()
-                obj2_count = (non_bg_neighbors == 2).sum()
+                # Count occurrences of each object label (baselines: K objects)
                 total_count = len(non_bg_neighbors)
-
-                # Determine majority label
-                if obj1_count > obj2_count:
-                    majority_label = 1
-                    majority_ratio = obj1_count / total_count
-                else:
-                    majority_label = 2
-                    majority_ratio = obj2_count / total_count
+                counts = np.bincount(non_bg_neighbors, minlength=object_probs.shape[1])
+                majority_label = int(counts[1:].argmax()) + 1
+                majority_ratio = counts[majority_label] / total_count
 
                 # Change label if strong majority and different from current
                 if majority_ratio >= min_ratio and corrected_assignments[i] != majority_label:
@@ -208,8 +198,8 @@ def fix_misclassified_particles(gaussians, k_neighbors=50, min_ratio=0.55, itera
             if changes == 0:
                 break
 
-        print(f"Final distribution - Background: {(corrected_assignments==0).sum()}, "
-              f"Obj1: {(corrected_assignments==1).sum()}, Obj2: {(corrected_assignments==2).sum()}")
+        print("Final distribution - Background: {}, ".format((corrected_assignments == 0).sum()) +
+              ", ".join(f"Obj{c}: {(corrected_assignments == c).sum()}" for c in range(1, object_probs.shape[1])))
 
         # Convert back to torch tensor on original device
         return torch.tensor(corrected_assignments, dtype=torch.long, device=device)
@@ -308,180 +298,89 @@ def prepare_gt_multi(dataset: ModelParams, iteration: int, pipeline: PipelinePar
         # Store corrected assignments for use in filter function
         original_gaussians._corrected_assignments = corrected_assignments
 
-    # Process Object 1
-    print("\n=== Processing Object 1 ===")
-    gaussians_obj1 = filter_gaussians_by_object(original_gaussians, object_id=1, use_clustering_fix=use_clustering_fix)
-    scene_full.gaussians = gaussians_obj1  # Update scene's gaussians
-    output1 = prepare_gt(dataset, iteration, pipeline, phys_args, gaussians=gaussians_obj1, scene=scene_full, object_id=1)
-    print(f"Object 1 ({phys_args.sub_objects[0]['name']}) after filling: {len(output1[1]):,} particles")
+    # baselines (PhysON): any number of objects, ids 1..K from phys_args.sub_objects
+    from utils.object_palette import obj_color_u8
+    obj_ids = [int(o['object_id']) for o in phys_args.sub_objects]
+    obj_names = {int(o['object_id']): o.get('name', f"obj{o['object_id']}") for o in phys_args.sub_objects}
+    outputs = {}
+    for oid in obj_ids:
+        print(f"\n=== Processing Object {oid} ({obj_names[oid]}) ===")
+        gaussians_obj = filter_gaussians_by_object(original_gaussians, object_id=oid, use_clustering_fix=use_clustering_fix)
+        scene_full.gaussians = gaussians_obj  # Update scene's gaussians
+        outputs[oid] = prepare_gt(dataset, iteration, pipeline, phys_args, gaussians=gaussians_obj, scene=scene_full, object_id=oid)
+        print(f"Object {oid} ({obj_names[oid]}) after filling: {len(outputs[oid][1]):,} particles")
 
-    # Process Object 2
-    print("\n=== Processing Object 2 ===")
-    gaussians_obj2 = filter_gaussians_by_object(original_gaussians, object_id=2, use_clustering_fix=use_clustering_fix)
-    scene_full.gaussians = gaussians_obj2  # Update scene's gaussians
-    output2 = prepare_gt(dataset, iteration, pipeline, phys_args, gaussians=gaussians_obj2, scene=scene_full, object_id=2)
-    print(f"Object 2 ({phys_args.sub_objects[1]['name']}) after filling: {len(output2[1]):,} particles")
-    
     # Restore original gaussians
     scene_full.gaussians = original_gaussians
-    
-    # Unpack outputs
-    gts1, vol1, vol_densities1, grid_size1, volume_surface1, cam_info1 = output1
-    gts2, vol2, vol_densities2, grid_size2, volume_surface2, cam_info2 = output2
-    
-    print("\n=== Combining Results ===")
-    
-    # Simple copies (same for both)
-    grid_size = grid_size1
-    cam_info = cam_info1
 
-    # Combine volumes and densities using torch
-    if len(vol1) > 0 and len(vol2) > 0:
-        vol_combined = torch.cat([vol1, vol2], dim=0)
-        vol_densities_combined = torch.cat([vol_densities1, vol_densities2], dim=0)
-        
-        # Fix surface indices for second object (add offset)
-        volume_surface2_offset = volume_surface2 + len(vol1)
-        volume_surface_combined = torch.cat([volume_surface1, volume_surface2_offset])
-        
-        # Create object labels for physics
-        object_labels = torch.cat([
-            torch.ones(len(vol1), dtype=torch.int32, device=vol1.device),
-            torch.ones(len(vol2), dtype=torch.int32, device=vol2.device) * 2
-        ])
-        
-        print(f"Combined: {len(vol_combined)} particles (Obj1: {len(vol1)}, Obj2: {len(vol2)})")
-    elif len(vol1) > 0:
-        vol_combined = vol1
-        vol_densities_combined = vol_densities1
-        volume_surface_combined = volume_surface1
-        object_labels = np.ones(len(vol1), dtype=np.int32)
-        print(f"Only Object 1: {len(vol1)} particles")
-    elif len(vol2) > 0:
-        vol_combined = vol2
-        vol_densities_combined = vol_densities2
-        volume_surface_combined = volume_surface2
-        object_labels = np.ones(len(vol2), dtype=np.int32) * 2
-        print(f"Only Object 2: {len(vol2)} particles")
-    else:
-        vol_combined = np.array([])
-        vol_densities_combined = np.array([])
-        volume_surface_combined = np.array([])
-        object_labels = np.array([])
-        print("Warning: No particles found!")
-    
-    # Combine gts frames using torch
+    print("\n=== Combining Results ===")
+    grid_size = outputs[obj_ids[0]][3]
+    cam_info = outputs[obj_ids[0]][5]
+    vols = {oid: outputs[oid][1] for oid in obj_ids}
+    present = [oid for oid in obj_ids if len(vols[oid]) > 0]
+    if not present:
+        raise RuntimeError("No particles found for any object")
+    vol_combined = torch.cat([vols[oid] for oid in present], dim=0)
+    vol_densities_combined = torch.cat([outputs[oid][2] for oid in present], dim=0)
+    surfaces, labels, offset = [], [], 0
+    for oid in present:
+        surfaces.append(outputs[oid][4] + offset)  # surface indices shifted into the combined array
+        labels.append(torch.full((len(vols[oid]),), oid, dtype=torch.int32, device=vol_combined.device))
+        offset += len(vols[oid])
+    volume_surface_combined = torch.cat(surfaces)
+    object_labels = torch.cat(labels)
+    print("Combined: {} particles ({})".format(len(vol_combined), ", ".join(f"Obj{oid}: {len(vols[oid])}" for oid in obj_ids)))
+
+    # Combine gts frames (object order = config order, as the per-object GT clouds)
+    gts_per_object = {oid: outputs[oid][0] for oid in obj_ids}
     gts_combined = []
-    max_frames = max(len(gts1) if gts1 else 0, len(gts2) if gts2 else 0)
+    max_frames = max(len(gts_per_object[oid]) for oid in obj_ids)
     for i in range(max_frames):
-        frame_points = []
-        if i < len(gts1):
-            frame_points.append(gts1[i])
-        if i < len(gts2):
-            frame_points.append(gts2[i])
+        frame_points = [gts_per_object[oid][i] for oid in obj_ids if i < len(gts_per_object[oid])]
         if frame_points:
             gts_combined.append(torch.cat(frame_points, dim=0))
-    
+
     # Store object labels in cam_info
     cam_info["object_labels"] = object_labels
 
-    # Save GT surface points for all frames
+    # Save GT surface points for all frames, coloured per object
     if gts_combined:
         for frame_idx, frame_gts in enumerate(gts_combined):
-            # Create colors based on which object each point came from
-            # Estimate based on position in concatenated tensor
-            n_pts = len(frame_gts)
-            colors = torch.zeros((n_pts, 3), device=frame_gts.device)
-            
-            # Rough estimate: first part is obj1, second part is obj2
-            if frame_idx < len(gts1) and frame_idx < len(gts2):
-                n_obj1 = len(gts1[frame_idx])
-                colors[:n_obj1] = torch.tensor([1.0, 0.784, 0.157], device=frame_gts.device)  # Object 1: yellow/gold
-                colors[n_obj1:] = torch.tensor([0.004, 0.267, 0.129], device=frame_gts.device)  # Object 2: green
-            elif frame_idx < len(gts1):
-                colors[:] = torch.tensor([1.0, 0.784, 0.157], device=frame_gts.device)  # All obj1
-            else:
-                colors[:] = torch.tensor([0.004, 0.267, 0.129], device=frame_gts.device)  # All obj2
-            
-            colors_np = (colors * 255).cpu().numpy().astype(np.uint8)
-            write_particles(frame_gts, frame_idx, dataset.model_path, 'gt_surface', vertex_colors=colors_np)
-        
+            cols = [np.tile(np.asarray(obj_color_u8(oid), np.uint8), (len(gts_per_object[oid][frame_idx]), 1))
+                    for oid in obj_ids if frame_idx < len(gts_per_object[oid])]
+            write_particles(frame_gts, frame_idx, dataset.model_path, 'gt_surface', vertex_colors=np.concatenate(cols, 0))
         print(f"Saved GT surface points for all {len(gts_combined)} frames to {dataset.model_path}/mpm/gt_surface_*.ply")
         print(f"Points in frame 0: {len(gts_combined[0]) if gts_combined else 0}")
-    
-    # Save combined multi-object particles with color coding
-    if len(vol_combined) > 0:
-        # Create vertex colors based on object IDs
-        colors = torch.zeros((len(vol_combined), 3), device=vol_combined.device)
-        colors[object_labels == 1] = torch.tensor([1.0, 0.784, 0.157], device=vol_combined.device)  # Object 1: yellow/gold
-        colors[object_labels == 2] = torch.tensor([0.004, 0.267, 0.129], device=vol_combined.device)  # Object 2: green
-        
-        # Convert to numpy for saving
-        colors_np = (colors * 255).cpu().numpy().astype(np.uint8)
-        
-        # Save combined particles with colors and object labels using plyfile
-        from utils.system_utils import write_ply_with_labels
-        filepath = os.path.join(dataset.model_path, 'mpm', 'multi_object_0.ply')
-        os.makedirs(os.path.join(dataset.model_path, 'mpm'), exist_ok=True)
-        write_ply_with_labels(filepath, vol_combined, colors_np, object_labels)
-        print(f"Saved combined particles with object labels to {dataset.model_path}/mpm/multi_object_0.ply")
-        
-        # Create per-particle material types from object IDs and sub_objects config
-        particle_materials = torch.zeros(len(vol_combined), dtype=torch.int32, device=vol_combined.device)
-        for obj_config in phys_args.sub_objects:
-            obj_id = obj_config['object_id']
-            material_type = obj_config['material']  # Should be 10 (elastic) for both
-            particle_materials[object_labels == obj_id] = material_type
-        
-        # Store in cam_info for later use
-        cam_info["particle_materials"] = particle_materials
-        print(f"Material types - Object 1: {phys_args.sub_objects[0]['material']}, Object 2: {phys_args.sub_objects[1]['material']}")
-    
-    gts_per_object = {
-        1: gts1,
-        2: gts2
-    }
-    
+
+    # Save combined multi-object particles with color coding and object labels
+    labels_np = object_labels.cpu().numpy()
+    palette = np.asarray([obj_color_u8(i) for i in range(int(labels_np.max()) + 1)], dtype=np.uint8)
+    colors_np = palette[labels_np]
+    from utils.system_utils import write_ply_with_labels
+    mpm_path = os.path.join(dataset.model_path, 'mpm')
+    os.makedirs(mpm_path, exist_ok=True)
+    write_ply_with_labels(os.path.join(mpm_path, 'multi_object_0.ply'), vol_combined, colors_np, object_labels)
+    print(f"Saved combined particles with object labels to {mpm_path}/multi_object_0.ply")
+
+    # Create per-particle material types from object IDs and sub_objects config
+    particle_materials = torch.zeros(len(vol_combined), dtype=torch.int32, device=vol_combined.device)
+    for obj_config in phys_args.sub_objects:
+        particle_materials[object_labels == int(obj_config['object_id'])] = int(obj_config['material'])
+    cam_info["particle_materials"] = particle_materials
+    print("Material types - " + ", ".join(f"Object {o['object_id']}: {o['material']}" for o in phys_args.sub_objects))
+
     # Save per-object particles separately for verification
-    if len(vol_combined) > 0:
-        mpm_path = os.path.join(dataset.model_path, "mpm")
-        os.makedirs(mpm_path, exist_ok=True)
-        
-        # Save particles for Object 1
-        obj1_mask = object_labels == 1
-        if obj1_mask.any():
-            obj1_particles = vol_combined[obj1_mask]
-            # Create yellow/gold color for object 1
-            obj1_colors = torch.full((len(obj1_particles), 3), fill_value=255, device=obj1_particles.device, dtype=torch.uint8)
-            obj1_colors[:, 0] = 255  # R
-            obj1_colors[:, 1] = 200  # G  
-            obj1_colors[:, 2] = 40   # B (yellow/gold)
-            obj1_colors_np = obj1_colors.cpu().numpy()
-            
-            write_particles(obj1_particles, 0, dataset.model_path, 'object1_particles', vertex_colors=obj1_colors_np)
-            print(f"Saved Object 1 particles ({len(obj1_particles)} points) to {mpm_path}/object1_particles_0.ply")
-        
-        # Save particles for Object 2
-        obj2_mask = object_labels == 2
-        if obj2_mask.any():
-            obj2_particles = vol_combined[obj2_mask]
-            # Create green color for object 2
-            obj2_colors = torch.full((len(obj2_particles), 3), fill_value=255, device=obj2_particles.device, dtype=torch.uint8)
-            obj2_colors[:, 0] = 1    # R
-            obj2_colors[:, 1] = 68   # G
-            obj2_colors[:, 2] = 33   # B (green)
-            obj2_colors_np = obj2_colors.cpu().numpy()
-            
-            write_particles(obj2_particles, 0, dataset.model_path, 'object2_particles', vertex_colors=obj2_colors_np)
-            print(f"Saved Object 2 particles ({len(obj2_particles)} points) to {mpm_path}/object2_particles_0.ply")
-        
-        # Print statistics
-        print(f"\nParticle Statistics:")
-        print(f"  Total particles: {len(object_labels)}")
-        print(f"  Object 1 particles: {obj1_mask.sum().item()} ({obj1_mask.sum().item()/len(object_labels)*100:.1f}%)")
-        print(f"  Object 2 particles: {obj2_mask.sum().item()} ({obj2_mask.sum().item()/len(object_labels)*100:.1f}%)")
-    
-    return gts_per_object, gts_combined, vol_combined, vol_densities_combined, grid_size, volume_surface_combined, cam_info, vol1, vol2
+    print("\nParticle Statistics:")
+    print(f"  Total particles: {len(object_labels)}")
+    for oid in obj_ids:
+        obj_mask = object_labels == oid
+        n = int(obj_mask.sum().item())
+        if n > 0:
+            write_particles(vol_combined[obj_mask], 0, dataset.model_path, f'object{oid}_particles',
+                            vertex_colors=np.tile(np.asarray(obj_color_u8(oid), np.uint8), (n, 1)))
+        print(f"  Object {oid} particles: {n} ({n / len(object_labels) * 100:.1f}%)")
+
+    return gts_per_object, gts_combined, vol_combined, vol_densities_combined, grid_size, volume_surface_combined, cam_info, vols
 
 
 def prepare_gt(dataset: ModelParams, iteration: int, pipeline: PipelineParams, phys_args, gaussians=None, scene=None, object_id=None):
@@ -764,77 +663,35 @@ def save_training_debug(estimator: Estimator, iteration, save_path, pos_sequence
                     rendered_frames.append(frame_renders)
                     gt_frames.append(frame_gts)
 
-                # Save silhouette comparisons for this frame (matching render_forward exactly)
+                # Save silhouette comparisons for this frame (matching render_forward exactly);
+                # baselines: one GT|render row per object
                 if hasattr(gaussians, 'get_object_probs') and len(views) > 0:
-                    # Get object assignments using argmax (same as render_forward)
-                    object_probs = gaussians.get_object_probs  # [N, 3]
-                    object_assignments = torch.argmax(object_probs, dim=1)  # [N] with values 0,1,2
-                    obj1_mask = (object_assignments == 1).float()  # Mask for object 1
-                    obj2_mask = (object_assignments == 2).float()  # Mask for object 2
-
-                    # Store original opacities (raw _opacity values)
+                    object_probs = gaussians.get_object_probs  # [N, K+1]
+                    object_assignments = torch.argmax(object_probs, dim=1)
+                    obj_ids_dbg = list(range(1, object_probs.shape[1]))
                     original_opacity = gaussians._opacity.detach().clone()
-
-                    # Process first view for silhouette comparison
                     view = sorted_views[0] if len(sorted_views) > 0 else views[0]
-                    if hasattr(view, 'gt_alpha_mask_obj1') and hasattr(view, 'gt_alpha_mask_obj2'):
-                        # Render object 1 only (matching render_forward)
-                        gaussians._opacity.data = original_opacity * obj1_mask.unsqueeze(1) - 1e2 * (1 - obj1_mask.unsqueeze(1))
-                        with torch.no_grad():
-                            # Create zero deformation tensors for anisotropic Gaussians
-                            # Isotropic Gaussians (num_attribute=4)
-                            results_obj1 = render(view, gaussians, estimator.pipeline, background, d_xyz, 0.0, 0.0, False)
-                            # Anisotropic Gaussians (num_attribute=10) - fallback
-                            # num_gaussians = gaussians._xyz.shape[0]
-                            # d_rotation = torch.zeros((num_gaussians, 4), device=gaussians._xyz.device)
-                            # d_scaling = torch.zeros((num_gaussians, 3), device=gaussians._xyz.device)
-                            # results_obj1 = render(view, gaussians, estimator.pipeline, background, d_xyz, d_rotation, d_scaling, False)
-                            alpha_obj1 = results_obj1["alpha"].cpu().numpy()[0]  # [H, W]
-
-                        # Render object 2 only (matching render_forward)
-                        gaussians._opacity.data = original_opacity * obj2_mask.unsqueeze(1) - 1e2 * (1 - obj2_mask.unsqueeze(1))
-                        with torch.no_grad():
-                            # Isotropic Gaussians (num_attribute=4)
-                            results_obj2 = render(view, gaussians, estimator.pipeline, background, d_xyz, 0.0, 0.0, False)
-                            # Anisotropic Gaussians (num_attribute=10) - fallback
-                            # results_obj2 = render(view, gaussians, estimator.pipeline, background, d_xyz, d_rotation, d_scaling, False)
-                            alpha_obj2 = results_obj2["alpha"].cpu().numpy()[0]  # [H, W]
-
-                        # Get GT silhouettes (same as used in render_forward)
-                        gt_alpha_obj1 = view.gt_alpha_mask_obj1.cpu().numpy()[0]  # [H, W]
-                        gt_alpha_obj2 = view.gt_alpha_mask_obj2.cpu().numpy()[0]  # [H, W]
-
-                        # Convert to uint8
-                        alpha_obj1 = (alpha_obj1 * 255).astype(np.uint8)
-                        alpha_obj2 = (alpha_obj2 * 255).astype(np.uint8)
-                        gt_alpha_obj1 = (gt_alpha_obj1 * 255).astype(np.uint8)
-                        gt_alpha_obj2 = (gt_alpha_obj2 * 255).astype(np.uint8)
-
-                        # Create side-by-side comparison
-                        h, w = alpha_obj1.shape
-                        comparison_obj1 = np.zeros((h, w * 2), dtype=np.uint8)
-                        comparison_obj1[:, :w] = gt_alpha_obj1  # GT on left
-                        comparison_obj1[:, w:] = alpha_obj1     # Rendered on right
-
-                        comparison_obj2 = np.zeros((h, w * 2), dtype=np.uint8)
-                        comparison_obj2[:, :w] = gt_alpha_obj2  # GT on left
-                        comparison_obj2[:, w:] = alpha_obj2     # Rendered on right
-
-                        # Stack vertically: obj1 on top, obj2 on bottom
-                        full_comparison = np.vstack([comparison_obj1, comparison_obj2])
-
-                        # Add labels
-                        font = cv2.FONT_HERSHEY_SIMPLEX
-                        font_scale = 0.7
-                        thickness = 2
-                        cv2.putText(full_comparison, "GT", (10, 30), font, font_scale, 255, thickness)
-                        cv2.putText(full_comparison, "Rendered", (w + 10, 30), font, font_scale, 255, thickness)
-                        cv2.putText(full_comparison, "Obj1", (10, h - 10), font, font_scale, 255, thickness)
-                        cv2.putText(full_comparison, "Obj2", (10, h * 2 - 10), font, font_scale, 255, thickness)
-
-                        # Collect for video (convert to RGB for video encoding)
+                    if all(hasattr(view, f'gt_alpha_mask_obj{k}') for k in obj_ids_dbg):
+                        comps = []
+                        for k in obj_ids_dbg:
+                            m = (object_assignments == k).float()
+                            gaussians._opacity.data = original_opacity * m.unsqueeze(1) - 1e2 * (1 - m.unsqueeze(1))
+                            with torch.no_grad():
+                                alpha_k = render(view, gaussians, estimator.pipeline, background, d_xyz, 0.0, 0.0, False)["alpha"].cpu().numpy()[0]
+                            gt_k = getattr(view, f'gt_alpha_mask_obj{k}').cpu().numpy()[0]
+                            alpha_k = (alpha_k * 255).astype(np.uint8)
+                            gt_k = (gt_k * 255).astype(np.uint8)
+                            h, w = alpha_k.shape
+                            comp = np.zeros((h, w * 2), dtype=np.uint8)
+                            comp[:, :w] = gt_k
+                            comp[:, w:] = alpha_k
+                            cv2.putText(comp, f"Obj{k}", (10, h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 255, 2)
+                            comps.append(comp)
+                        full_comparison = np.vstack(comps)
+                        w = comps[0].shape[1] // 2
+                        cv2.putText(full_comparison, "GT", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 255, 2)
+                        cv2.putText(full_comparison, "Rendered", (w + 10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 255, 2)
                         sil_frames.append(cv2.cvtColor(full_comparison, cv2.COLOR_GRAY2RGB))
-
                         # Restore original opacities
                         gaussians._opacity.data = original_opacity
     
@@ -1650,6 +1507,8 @@ if __name__ == "__main__":
 
     print(phys_args)
     safe_state(gs_args.quiet)
+    from scene.gaussian_model import set_num_objects
+    set_num_objects(len(phys_args.sub_objects))  # baselines: background + K object channels
 
     # 1. train def gs with multi-object support
     dataset = model.extract(gs_args)
@@ -1659,7 +1518,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     
     # 2. estimate velocity (multi-object)
-    gts_per_object, gts_combined, vol, vol_densities, grid_size, volume_surface, cam_info, vol1, vol2 = prepare_gt_multi(model.extract(gs_args), gs_args.iterations, pipeline.extract(gs_args), phys_args)
+    gts_per_object, gts_combined, vol, vol_densities, grid_size, volume_surface, cam_info, vols_per_object = prepare_gt_multi(model.extract(gs_args), gs_args.iterations, pipeline.extract(gs_args), phys_args)
     torch.cuda.empty_cache()
     if os.environ.get('TI_DEVICE_MEMORY_GB'):  # baselines: shared GPUs, cap taichi preallocation
         ti.init(arch=ti.cuda, debug=False, fast_math=False, device_memory_GB=float(os.environ['TI_DEVICE_MEMORY_GB']))

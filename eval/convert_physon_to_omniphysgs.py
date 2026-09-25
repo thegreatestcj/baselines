@@ -235,6 +235,17 @@ def main():
     p_experts = ["IdentityPlasticity", "IdentityPlasticity", "VonMisesPlasticity", "DruckerPragerPlasticity"] + (["SigmaPlasticity"] if fluid_scene else [])
     print(f"[experts] region kinds {sorted(kinds)} -> elasticity {e_experts}, plasticity {p_experts}")
 
+    # ---- substep: never coarser than the dataset's own MPM substep (stability), never finer than
+    # 1.5e-4 s (cost); the BPTT window shrinks to 4 frames when a frame needs > 120 substeps
+    # (24 fps subsets: 200 substeps/frame, i.e. 4x the per-frame cost of the 96 fps subsets)
+    spf = scene.metadata.get("steps_per_frame") or scene.metadata.get("MPM_substeps_per_observation")
+    dt = 1.5e-4
+    if spf:
+        dt = max(dt, scene.frame_dt / float(spf))
+    n_sub = int(round(scene.frame_dt / dt))
+    frames_per_stage = 8 if n_sub <= 120 else 4
+    print(f"[sim] substep {dt:.4g} s -> {n_sub} substeps/frame (dataset {spf}), BPTT window {frames_per_stage} frames")
+
     # ---- config.yaml from the template
     text = open(args.template).read()
     fill = {
@@ -248,6 +259,7 @@ def main():
         "test_cam_ids": "[" + ", ".join(str(c) for c in scene.test_cam_ids) + "]",
         "rgb_exclude_cams": "[" + ", ".join(str(c) for c in rgb_exclude) + "]",
         "elasticity_physicals": "[" + ", ".join(e_experts) + "]",
+        "dt": f"{dt:.6g}", "frames_per_stage": str(frames_per_stage),
         "plasticity_physicals": "[" + ", ".join(p_experts) + "]",
     }
     for k, v in fill.items():

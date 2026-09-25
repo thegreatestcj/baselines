@@ -121,11 +121,11 @@ sim:
   floor_margin: 0.05              # m below the floor kept inside the cube (floor must sit >= 3 cells above 0)
   box_fill: 0.9                   # fraction of the unit cube the box spans
   num_grids: 96                   # MPM grid resolution (sim cube)
-  dt: 1.5e-4                      # substep (s); steps_per_frame = round(frame_dt/dt), dt re-fit to frame_dt exactly
+  dt: {{dt}}                      # substep (s) = max(1.5e-4, the dataset's own substep); steps_per_frame = round(frame_dt/dt)
   frame_dt: {{frame_dt}}          # physical frame interval (1 / sim_fps)
   sim_fps: {{sim_fps}}
   n_frames: {{n_frames}}          # observed frames simulated / supervised
-  frames_per_stage: 8             # truncated-BPTT window (n_frames need not be a multiple; last stage is shorter)
+  frames_per_stage: {{frames_per_stage}}   # truncated-BPTT window (8 at <=120 substeps/frame, else 4: autograd memory ~ substeps/window)
   clip_bound: 0.5                 # particles clamped to [clip_bound*dx, 1-clip_bound*dx] (upstream)
   damping: 1.0
   gravity: {{gravity}}            # world m/s^2 (y-up)

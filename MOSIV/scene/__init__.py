@@ -165,8 +165,7 @@ class Scene:
             object_probs = self.gaussians.get_object_probs  # [N, 3] with softmax probabilities
             # Use argmax to assign each Gaussian to exactly one object (same logic as filter_gaussians_by_object)
             object_assignments = torch.argmax(object_probs, dim=1)  # [N] with values 0,1,2
-            obj1_mask = (object_assignments == 1).float()  # Boolean mask for object 1
-            obj2_mask = (object_assignments == 2).float()  # Boolean mask for object 2
+            obj_masks = {k: (object_assignments == k).float() for k in range(1, object_probs.shape[1])}  # per object id
             
             # Store original opacities (raw _opacity values)
             original_opacity = self.gaussians._opacity.clone().detach()
@@ -183,20 +182,12 @@ class Scene:
                         results = render(view, self.gaussians, pipeline, background, d_xyz, d_rotation, d_scaling, False)
                         alpha = results["alpha"]
                         view.gt_alpha_mask = alpha.to(view.data_device)
-                        # Generate masks based on object_id
-                        if object_id == 1:
-                            # Object 1: Zero out opacities for non-object-1 Gaussians
-                            self.gaussians._opacity.data = original_opacity * obj1_mask.unsqueeze(1)
-                            results_obj1 = render(view, self.gaussians, pipeline, background, d_xyz, d_rotation, d_scaling, False)
-                            alpha_obj1 = results_obj1["alpha"]
-                            view.gt_alpha_mask_obj1 = alpha_obj1.to(view.data_device)
-                            self.gaussians._opacity.data = original_opacity
-                        elif object_id == 2:
-                            # Object 2: Zero out opacities for non-object-2 Gaussians
-                            self.gaussians._opacity.data = original_opacity * obj2_mask.unsqueeze(1)
-                            results_obj2 = render(view, self.gaussians, pipeline, background, d_xyz, d_rotation, d_scaling, False)
-                            alpha_obj2 = results_obj2["alpha"]
-                            view.gt_alpha_mask_obj2 = alpha_obj2.to(view.data_device)
+                        # Generate the per-object mask of object_id (baselines: any number of objects)
+                        if object_id is not None and int(object_id) in obj_masks:
+                            m = obj_masks[int(object_id)]
+                            self.gaussians._opacity.data = original_opacity * m.unsqueeze(1)
+                            results_obj = render(view, self.gaussians, pipeline, background, d_xyz, d_rotation, d_scaling, False)
+                            setattr(view, f'gt_alpha_mask_obj{int(object_id)}', results_obj["alpha"].to(view.data_device))
                             self.gaussians._opacity.data = original_opacity
                     else:
                         # Fallback to original behavior if no object probabilities

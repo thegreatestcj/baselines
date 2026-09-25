@@ -7,7 +7,7 @@ labels), re-simulates all frames with the same estimator/simulator (external for
 writes, under <model_path>:
 
   mpm/simulation_<f>.ply          all particles per frame, world metres  (eval/eval_scene.py --pred_plys)
-  mpm/object<k>_<f>.ply           per-object particles
+  mpm/object<k>_<f>.ply           per-object particles (k = 0..K-1, config order)
   img_render/<view>_<f>.png       silhouette render of the held-out camera (particles as small
   img_render/<view>_<f>_mask.png  isotropic Gaussians, colour per object) and its alpha
   prediction_metrics.json         per-frame Chamfer (10^3 mm^2, 8192 samples) vs the GT particles,
@@ -116,11 +116,11 @@ def build_camera(source, view_id):
     raise RuntimeError(f"camera {view_id} not found in all_data.json")
 
 
-def particle_gaussians(xyz, labels, radius, colors):
+def particle_gaussians(xyz, labels, radius, palette):
     from scene.gaussian_model import GaussianModel
     from utils.graphics_utils import BasicPointCloud
     from utils.general_utils import inverse_sigmoid
-    col = np.asarray([colors[int(l) - 1 if int(l) >= 1 else 0] for l in labels], np.float32)
+    col = np.asarray([palette[int(l)] for l in labels], np.float32)
     g = GaussianModel(0)
     g.create_from_pcd(BasicPointCloud(points=xyz, colors=col, normals=np.zeros_like(xyz)), 1.0)
     with torch.no_grad():
@@ -147,9 +147,14 @@ def main():
         ti.init(arch=ti.cuda, debug=False, fast_math=False, device_memory_fraction=0.5)
     from simulator.estimator_multi import Estimator
     from utils.system_utils import read_ply_with_labels
+    from utils.object_palette import obj_color
+    from scene.gaussian_model import set_num_objects
 
     cfg = json.load(open(a.config_path))
     phys = Namespace(**cfg["physics"])
+    obj_ids = [int(so["object_id"]) for so in phys.sub_objects]   # 1..K in config order
+    K = len(obj_ids)
+    set_num_objects(K)
     model = Path(a.model_path).resolve()
     pred_path = model / f"{phys.id}-pred.json"
     if not pred_path.exists():
@@ -171,7 +176,7 @@ def main():
     est.initialize()
 
     source = Path(a.source_path).resolve()
-    gt_dirs = [source / "point_clouds" / str(k) for k in range(2)]
+    gt_dirs = [source / "point_clouds" / str(k) for k in range(K)]
     n_gt = len(list(gt_dirs[0].glob("*.ply"))) if gt_dirs[0].exists() else int(getattr(phys, "n_frames", 30))
     frames = int(a.frames or n_gt)
     view_id = a.view_id if a.view_id is not None else int((getattr(phys, "test_cam_ids", None) or [0])[0])
@@ -204,14 +209,14 @@ def main():
     for f, pos in enumerate(seq):
         write_xyz(model / "mpm" / f"simulation_{f}.ply", pos)
         row = dict(frame=f)
-        for k in range(2):
-            pk = pos[labels == k + 1]
+        for k, oid in enumerate(obj_ids):
+            pk = pos[labels == oid]
             write_xyz(model / "mpm" / f"object{k}_{f}.ply", pk)
             gp = gt_dirs[k] / f"{f}.ply"
             if gp.exists() and len(pk):
                 row[f"cd_obj{k}"] = chamfer_sq_mm2(pk.astype(np.float64), read_xyz(gp).astype(np.float64))
-        if all(f"cd_obj{k}" in row for k in range(2)):
-            gt_all = np.concatenate([read_xyz(gt_dirs[k] / f"{f}.ply") for k in range(2)], 0)
+        if all(f"cd_obj{k}" in row for k in range(K)):
+            gt_all = np.concatenate([read_xyz(gt_dirs[k] / f"{f}.ply") for k in range(K)], 0)
             row["cd"] = chamfer_sq_mm2(pos.astype(np.float64), gt_all.astype(np.float64))
         rows.append(row)
         if f % 8 == 0:
@@ -223,8 +228,8 @@ def main():
         from PIL import Image
         cam, H, W = build_camera(source, view_id)
         pipe = Namespace(convert_SHs_python=False, compute_cov3D_python=False, debug=False)
-        colors = [[1.0, 0.784, 0.157], [0.004, 0.267, 0.129]]
-        g = particle_gaussians(seq[0], labels, a.radius, colors)
+        palette = {int(l): obj_color(int(l)) for l in np.unique(labels)}
+        g = particle_gaussians(seq[0], labels, a.radius, palette)
         bg = torch.tensor([1.0, 1.0, 1.0], device="cuda")
         (model / "img_render").mkdir(exist_ok=True)
         with torch.no_grad():
@@ -243,8 +248,10 @@ def main():
         print(f"[export] rendered camera {view_id} to {model / 'img_render'}")
 
     mean = lambda k: float(np.mean([r[k] for r in rows if k in r])) if any(k in r for r in rows) else None
-    metrics = dict(per_frame=rows, frames=frames, view_id=view_id, fitted=pred.get("sub_objects"),
-                   mean=dict(cd=mean("cd"), cd_obj0=mean("cd_obj0"), cd_obj1=mean("cd_obj1"), silhouette_iou=mean("silhouette_iou")))
+    means = dict(cd=mean("cd"), silhouette_iou=mean("silhouette_iou"))
+    for k in range(K):
+        means[f"cd_obj{k}"] = mean(f"cd_obj{k}")
+    metrics = dict(per_frame=rows, frames=frames, view_id=view_id, n_objects=K, fitted=pred.get("sub_objects"), mean=means)
     json.dump(metrics, open(model / "prediction_metrics.json", "w"), indent=1)
     print("[export] mean:", metrics["mean"])
 

@@ -647,15 +647,16 @@ def readCamerasFromAllDataWithMask(path, white_background):
             mask_path = os.path.join(path, "masks", mask_file_name)
             if os.path.exists(mask_path):
                 try:
-                    mask_2ch = np.load(mask_path)  # Shape: [H, W, 2] with channels for obj1, obj2
-                    H, W = mask_2ch.shape[:2]
-                    mask_3ch = np.zeros((H, W, 3), dtype=np.float32)
-                    
+                    mask_k = np.load(mask_path)  # [H, W, K]: one channel per object (uint8 {0,255} or {0,1})
+                    if mask_k.ndim == 2:
+                        mask_k = mask_k[..., None]
+                    H, W, K = mask_k.shape
+                    mask_3ch = np.zeros((H, W, K + 1), dtype=np.float32)
                     # Channel 0: Background (always 0 - no Gaussian represents background)
-                    mask_3ch[:, :, 0] = 0.0
-                    mask_3ch[:, :, 1] = mask_2ch[:, :, 0].astype(np.float32)
-                    mask_3ch[:, :, 2] = mask_2ch[:, :, 1].astype(np.float32)
-                    
+                    mk = mask_k.astype(np.float32)
+                    if mk.max() > 1.0:
+                        mk = mk / 255.0
+                    mask_3ch[:, :, 1:] = mk
                     object_mask = mask_3ch
                 except Exception as e:
                     print(f"Warning: Could not load mask {mask_path}: {e}")
@@ -688,8 +689,8 @@ def readCamerasFromAllDataWithMask(path, white_background):
                 # Resize object mask if it exists
                 if object_mask is not None:
                     # Resize each channel [H, W, 3] format
-                    resized_mask = np.zeros((800, 800, 3), dtype=np.float32)
-                    for i in range(3):
+                    resized_mask = np.zeros((800, 800, object_mask.shape[2]), dtype=np.float32)
+                    for i in range(object_mask.shape[2]):
                         channel = Image.fromarray((object_mask[:, :, i] * 255).astype(np.uint8))
                         resized_channel = channel.resize((800, 800), Image.BILINEAR)
                         resized_mask[:, :, i] = np.asarray(resized_channel) / 255.0
@@ -732,30 +733,25 @@ def readGenesisMOInfo(path, config_path, white_background, eval_cam_id=0, load_f
     if not load_fix_pcd:
         # Check if we have per-object bounds or single global bounds
         if 'obj1_xyz_min' in cfg['data'] and 'obj1_xyz_max' in cfg['data']:
-            # Per-object initialization
-            obj1_xyz_min = np.asarray(cfg['data']['obj1_xyz_min']).reshape(1, 3)
-            obj1_xyz_max = np.asarray(cfg['data']['obj1_xyz_max']).reshape(1, 3)
-            obj2_xyz_min = np.asarray(cfg['data']['obj2_xyz_min']).reshape(1, 3)
-            obj2_xyz_max = np.asarray(cfg['data']['obj2_xyz_max']).reshape(1, 3)
+            # Per-object initialization (baselines: K objects, obj<k>_xyz_min/max for k = 1..K)
+            bounds = []
+            k = 1
+            while f'obj{k}_xyz_min' in cfg['data'] and f'obj{k}_xyz_max' in cfg['data']:
+                bounds.append((np.asarray(cfg['data'][f'obj{k}_xyz_min']).reshape(1, 3),
+                               np.asarray(cfg['data'][f'obj{k}_xyz_max']).reshape(1, 3)))
+                k += 1
+            # upstream: 50k points per object for its two-object scenes; more objects share ~100k
+            pts_per_object = 50000 if len(bounds) <= 2 else max(15000, 100000 // len(bounds))
 
-            # Fixed number of points per object
-            pts_per_object = 50000  # 50k points per object
+            print(f"Generating per-object point clouds ({pts_per_object} points per object, {len(bounds)} objects)...")
+            xyzs, shss = [], []
+            for lo, hi in bounds:
+                xyzs.append(np.random.random((pts_per_object, 3)) * (hi - lo) + lo)
+                shss.append(np.random.random((pts_per_object, 3)) / 255.0)
+            xyz = np.vstack(xyzs)
+            shs = np.vstack(shss)
 
-            print(f"Generating per-object point clouds ({pts_per_object} points per object)...")
-
-            # Generate points for object 1
-            xyz1 = np.random.random((pts_per_object, 3)) * (obj1_xyz_max - obj1_xyz_min) + obj1_xyz_min
-            shs1 = np.random.random((pts_per_object, 3)) / 255.0
-
-            # Generate points for object 2
-            xyz2 = np.random.random((pts_per_object, 3)) * (obj2_xyz_max - obj2_xyz_min) + obj2_xyz_min
-            shs2 = np.random.random((pts_per_object, 3)) / 255.0
-
-            # Combine points
-            xyz = np.vstack([xyz1, xyz2])
-            shs = np.vstack([shs1, shs2])
-
-            print(f"Total points: {xyz.shape[0]} (obj1: {pts_per_object}, obj2: {pts_per_object})")
+            print(f"Total points: {xyz.shape[0]} ({len(bounds)} objects x {pts_per_object})")
 
         else:
             # Fallback to single global bounds

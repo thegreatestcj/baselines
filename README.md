@@ -9,12 +9,17 @@ our own dataset (PhysON) in https://huggingface.co/datasets/cmu-robotics-institu
 
 ## PhysON (our dataset) quickstart
 
-Two task groups run the baselines on PhysON: `omniphysgs_physon_het` (OmniPhysGS on
-the 12 `singleobject_heterogeneous_new` scenes: two material regions per object, forced
-or gravity-only, plus a two-phase fluid and a sand+pusher scene) and `mosiv_physon_mo`
-(MOSIV on the two-object scenes of `multiobject_heterogeneous_new`; MOSIV's released
-code handles exactly two objects, the 3-object scenes are skipped with a note).
-Everything below is what a fresh machine needs; nothing else has to be edited.
+Two task groups run the baselines on PhysON: `omniphysgs_physon_het` (OmniPhysGS on the
+heterogeneous single-object scenes: two material regions per object, forced or
+gravity-only) and `mosiv_physon_mo` (MOSIV on the multi-object scenes; MOSIV's released
+code handles exactly two objects, the vendored copy is generalised to any number, so all
+scenes run). Each group has two subsets: the defaults are `singleobject_heterogeneous`
+(14 scenes, 24 fps physics) and `multiobject_heterogeneous` (10 scenes with 2-6 objects,
+24 fps, gravity only); `PHYSON_HET_SUBSET=singleobject_heterogeneous_new` (12 scenes,
+96 fps, declared force fields) and `PHYSON_MO_SUBSET=multiobject_heterogeneous_new`
+(20 scenes, 2-4 objects, 80 fps, force fields) select the newer variants — set
+`PHYSON_SUBSETS` accordingly for `setup_data.sh`. Everything below is what a fresh
+machine needs; nothing else has to be edited.
 
 ```bash
 bash env/setup_env.sh main         # conda env "baselines": MOSIV, converters, eval, hf CLI
@@ -32,12 +37,11 @@ step (set `PHYSON_SUBSETS=` to skip it, see below). No file in the repo needs
 editing on a new machine: interpreters are found under `$(conda info --base)/envs`
 by `env.sh`, and machine-specific overrides go into the gitignored `env.local.sh`.
 
-`PHYSON_SUBSETS` (default `singleobject_heterogeneous_new multiobject_heterogeneous_new`)
+`PHYSON_SUBSETS` (default `singleobject_heterogeneous multiobject_heterogeneous`)
 selects what `setup_data.sh` fetches from the PhysON repo; `PHYSON_SUBSETS=` (empty)
 skips PhysON so the public benchmark setup works without org access. Scenes still
 downloading are skipped by `gen_tasks.sh` (stderr note) — rerun it after the
-download completes. `PHYSON_HET_SUBSET=singleobject_heterogeneous` switches the
-OmniPhysGS group to the older 14-scene variant. Each task is resumable
+download completes. Each task is resumable
 (converter → recon → fit/train → rollout → eval → overlay → `DONE`).
 
 External force: every PhysON scene ships its analytic force field
@@ -52,7 +56,7 @@ the static 3DGS budget, and `MOSIV_PHYSON_CONVERT_ARGS` takes the converter's op
 `tasks.txt` records them.
 
 Outputs per scene, under `results/physon_singleobject_heterogeneous_new/omniphysgs/`
-and `results/physon_multiobject/mosiv/`: `<scene>.json` (per-frame CD/EMD vs GT
+and `results/physon_multiobject_heterogeneous/mosiv/` (subset name in the path): `<scene>.json` (per-frame CD/EMD vs GT
 particles; OmniPhysGS also PSNR/SSIM/LPIPS on the held-out camera) and the
 silhouette overlay of the held-out camera, `<scene>_overlay.mp4` /
 `<scene>_overlay_frames.png` / `<scene>_overlay_iou.json` (GT red, prediction
@@ -64,25 +68,28 @@ and `MOSIV/output/physon/<subset>/<scene>` (`<scene>-pred.json` fitted per-objec
 parameters, `mpm/simulation_<f>.ply`, `img_render/`, `prediction_metrics.json`
 with per-object Chamfer).
 
-### Full run (12 + 5 scenes) and what it costs
+### Full run and what it costs
 
-The two groups cover 12 OmniPhysGS scenes (`singleobject_heterogeneous_new/{0_0..0_4,
-1_0..1_4, 2_0, 3_0}`) and the 5 two-object MOSIV scenes
-(`multiobject_heterogeneous_new/{0_3, 0_7, 0_11, 0_15, 0_19}`; the 15 three-object scenes
-are skipped by `gen_tasks.sh`). Measured on one H200 per task, nothing else on the GPU:
+Default groups: 14 OmniPhysGS scenes (`singleobject_heterogeneous/*`) and 10 MOSIV scenes
+(`multiobject_heterogeneous/*`, 2-6 objects each). Measured on one H200 per task with
+nothing else on the GPU (the `_new` subsets were measured; the 24 fps subsets are
+extrapolated from their 4x higher substep count per frame):
 
 | task | budget (defaults) | wall time | peak GPU memory |
 |---|---|---|---|
-| OmniPhysGS scene | static 3DGS 15k it, v0 closed form + 30 steps, 10 epochs × 6 stages × 10 steps (600 Adam steps, 4 views/frame, 8-frame BPTT windows) | ≈ 6.8 h | 23 GB |
-| MOSIV scene | object-aware 3DGS 40k it, lifting, 3 × 80 velocity it, 80 parameter it over 48 frames (upstream default 300 ≈ 15 h) | ≈ 4.8 h | ≈ 30 GB (taichi cap `TI_DEVICE_MEMORY_GB=20` + torch) |
+| OmniPhysGS, `_new` scene (96 fps) | static 3DGS 15k it, v0 closed form + 30 steps, 10 epochs × 6 stages × 10 steps (600 Adam steps, 4 views/frame, 8-frame BPTT windows, 69 substeps/frame) | ≈ 6.8 h | 23–31 GB |
+| OmniPhysGS, 24 fps scene | as above but 200 substeps/frame (the dataset's own substep), 4-frame BPTT windows, `train.epochs=6` (12 stages × 10 steps per epoch) | ≈ 12 h | ≈ 35–45 GB |
+| MOSIV scene | object-aware 3DGS 40k it, lifting, 3 × 80 velocity it, 80 parameter it over 48 frames (upstream default 300 ≈ 15 h) | ≈ 5 h (2 objects); CFL halving on fluid/sand scenes up to 2–3x | 30–45 GB (taichi cap `TI_DEVICE_MEMORY_GB=20` + torch) |
 
-Total ≈ 105 GPU-hours; with 4 workers per 140 GB GPU everything fits in one wave
-(`bash run_queue.sh 0,1,2,3 4`, ≈ 12–16 h wall since the workers share compute). On
-80 GB cards use 2–3 workers per GPU. The cost is inherent to both methods: every
-optimiser step runs the differentiable MPM forward *and* backward over the clip
-(OmniPhysGS: 96³ grid × 69 substeps/frame × 8 frames per step in pure PyTorch, ≈ 40 s;
-MOSIV: 150k particles × 48 frames × 200–400 substeps/frame in taichi with 100-substep
-re-forward checkpointing, ≈ 2.5–3.5 min per parameter iteration).
+Budget ≈ 170 GPU-hours for the 14 OmniPhysGS scenes and ≈ 60–100 for the 10 MOSIV
+scenes. Use as many workers per GPU as the memory allows (e.g. `bash run_queue.sh 0,1,2,3 3`
+on 140 GB cards, 1–2 per 80 GB card); they share compute, so a wave of N concurrent
+tasks takes roughly N/2 times a single task. `OMNIPHYSGS_PHYSON_ARGS='train.epochs=10'`
+restores the full budget on the 24 fps subset. The cost is inherent to both methods:
+every optimiser step runs the differentiable MPM forward *and* backward over the clip
+(OmniPhysGS: 96³ grid × substeps × frames per window in pure PyTorch; MOSIV: 150k
+particles × 48 frames × 200–400 substeps/frame in taichi with 100-substep re-forward
+checkpointing, ≈ 2.5–3.5 min per parameter iteration).
 
 Monitoring: `tasks.txt` (a task line disappears when a worker takes it),
 `logs/<group>_<scene>.log` (stage prints, `[train]`/`Training progress` lines),
@@ -121,12 +128,15 @@ MOSIV adaptation (details in `MOSIV/README_baselines.md`): the authors' code
 (private repo, vendored) runs unchanged except for (a) the GenesisMO input
 conversion — PhysON ships no instance masks, so oracle per-object masks are
 rasterised from the GT particles (MOSIV's own benchmark provides simulator
-masks), per-object GT clouds are split by `region_offsets`, material classes come
-from metadata and initial parameters are MOSIV's per-class defaults; (b) the
-declared external force added to the taichi MPM grid update; (c) the physical
-frame rate (80 fps) and a `separate` floor; (d) `export_prediction.py`, which
-re-simulates the fitted scene and writes particles/silhouettes instead of
-MOSIV's appearance-refit prediction script.
+masks), per-object GT clouds are split by the metadata particle ranges, material
+classes come from metadata and initial parameters are MOSIV's per-class defaults;
+(b) the released code's two-object assumption (object logits [N,3], [H,W,2] masks,
+obj1/obj2 branches in lifting, alpha targets and export) generalised to K objects
+(ids 1..K in config order; masks are rasterised in passes of three channels);
+(c) the declared external force, when the scene has one, added to the taichi MPM
+grid update; (d) the physical frame rate and a `separate` floor; (e)
+`export_prediction.py`, which re-simulates the fitted scene and writes
+particles/silhouettes instead of MOSIV's appearance-refit prediction script.
 
 
 ## Vid2Sim-only quickstart (for the current handoff)
