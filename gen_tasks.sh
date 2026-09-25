@@ -141,8 +141,9 @@ physon_scene_ready() { # <scene dir>
   for f in all_data.json data point_clouds transforms_test.json metadata.json; do
     [ -e "$d/$f" ] || { echo "gen_tasks: $d incomplete (no $f); skipping" >&2; return 1; }
   done
-  # data/ holds r_/a_/m_ variants of every (camera, frame) entry in all_data.json
-  n_view=$(grep -o '"file_path"' "$d/all_data.json" | wc -l)
+  # data/ holds r_/a_/m_ variants of every (camera, frame) entry in all_data.json; the
+  # background entries (frame -1) only have r_
+  n_view=$(grep -o '"file_path": *"[^"]*"' "$d/all_data.json" | grep -vc '_-1\.png')
   n_img=$(ls "$d/data" | wc -l)
   [ "$n_img" -ge $((3 * n_view)) ] || {
     echo "gen_tasks: $d incomplete ($n_img/$((3 * n_view)) frames in data/); skipping" >&2; return 1; }
