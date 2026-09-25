@@ -23,7 +23,7 @@ export PATH=$CUDA_HOME/bin:$PATH
 # taichi preallocation cap in GB. The upstream repos preallocate a FRACTION
 # of total GPU memory, which OOMs on large shared GPUs — 16G is plenty for
 # every scene in the benchmarks.
-export TI_DEVICE_MEMORY_GB=${TI_DEVICE_MEMORY_GB:-16}
+export TI_DEVICE_MEMORY_GB=${TI_DEVICE_MEMORY_GB:-20}   # MOSIV lifts ~150k particles per scene; 20G validated
 
 # Optional: pin TORCH_CUDA_ARCH_LIST to your GPU's compute capability in
 # env.local.sh to speed up one-time JIT builds (e.g. 8.0 for A100, 9.0 for

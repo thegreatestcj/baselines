@@ -64,6 +64,48 @@ and `MOSIV/output/physon/<subset>/<scene>` (`<scene>-pred.json` fitted per-objec
 parameters, `mpm/simulation_<f>.ply`, `img_render/`, `prediction_metrics.json`
 with per-object Chamfer).
 
+### Full run (12 + 5 scenes) and what it costs
+
+The two groups cover 12 OmniPhysGS scenes (`singleobject_heterogeneous_new/{0_0..0_4,
+1_0..1_4, 2_0, 3_0}`) and the 5 two-object MOSIV scenes
+(`multiobject_heterogeneous_new/{0_3, 0_7, 0_11, 0_15, 0_19}`; the 15 three-object scenes
+are skipped by `gen_tasks.sh`). Measured on one H200 per task, nothing else on the GPU:
+
+| task | budget (defaults) | wall time | peak GPU memory |
+|---|---|---|---|
+| OmniPhysGS scene | static 3DGS 15k it, v0 closed form + 30 steps, 10 epochs × 6 stages × 10 steps (600 Adam steps, 4 views/frame, 8-frame BPTT windows) | ≈ 6.8 h | 23 GB |
+| MOSIV scene | object-aware 3DGS 40k it, lifting, 3 × 80 velocity it, 80 parameter it over 48 frames (upstream default 300 ≈ 15 h) | ≈ 4.8 h | ≈ 30 GB (taichi cap `TI_DEVICE_MEMORY_GB=20` + torch) |
+
+Total ≈ 105 GPU-hours; with 4 workers per 140 GB GPU everything fits in one wave
+(`bash run_queue.sh 0,1,2,3 4`, ≈ 12–16 h wall since the workers share compute). On
+80 GB cards use 2–3 workers per GPU. The cost is inherent to both methods: every
+optimiser step runs the differentiable MPM forward *and* backward over the clip
+(OmniPhysGS: 96³ grid × 69 substeps/frame × 8 frames per step in pure PyTorch, ≈ 40 s;
+MOSIV: 150k particles × 48 frames × 200–400 substeps/frame in taichi with 100-substep
+re-forward checkpointing, ≈ 2.5–3.5 min per parameter iteration).
+
+Monitoring: `tasks.txt` (a task line disappears when a worker takes it),
+`logs/<group>_<scene>.log` (stage prints, `[train]`/`Training progress` lines),
+`timings.csv` (one row per finished task: tag, GPU, start, end, seconds, ok/fail),
+`<workdir>/…/DONE` per scene. A killed machine loses nothing: rerun
+`gen_tasks.sh` (finished scenes are skipped) and `run_queue.sh`; each stage resumes
+from its checkpoints.
+
+Key metrics, all written by `eval/eval_scene.py` + `eval/overlay_video.py` per scene
+and rolled up by `python eval/physon_summary.py` (markdown table on stdout +
+`results/physon_summary.csv`):
+
+- **CD** — symmetric squared Chamfer distance between predicted and GT particles per frame,
+  8192 samples each, reported in 10³ mm² (the PAC-NeRF / MASIV / Spring-Gaus convention);
+  MOSIV additionally per object (`prediction_metrics.json`).
+- **EMD** — earth mover's distance on 2048 samples, metres.
+- **PSNR / SSIM / LPIPS** — renders of the held-out camera (single-object: cam 1,
+  multi-object: cam 0) vs the GT frames; OmniPhysGS only (MOSIV's rollout renders silhouettes).
+- **silhouette IoU** — per frame on the held-out camera from the overlay video
+  (mean over the clip and last frame; the overlays are how results are shown here).
+- **fitted parameters vs GT** — per expert / per object (E, ν, yield stress, friction,
+  v0) from `params.json` / `<scene>-pred.json` against the scene metadata.
+
 OmniPhysGS adaptation (details in `OmniPhysGS/README_baselines.md`): upstream
 fits its per-particle constitutive mixture (KNN-transformer over expert
 elasticity/plasticity models + PyTorch MPM) to a video-diffusion SDS prior;

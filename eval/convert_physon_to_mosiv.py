@@ -66,7 +66,7 @@ def parse_args():
     p.add_argument("--out", required=True, help="GenesisMO-format output dir (MOSIV/data/PhysON_mosiv/<subset>/<scene>)")
     p.add_argument("--config_out", required=True, help="MOSIV config json to write")
     p.add_argument("--n_frames", type=int, default=None, help="observed frames used for fitting (default: all)")
-    p.add_argument("--iter_cnt", type=int, default=300, help="physical-parameter iterations (MOSIV default 300)")
+    p.add_argument("--iter_cnt", type=int, default=80, help="physical-parameter iterations (upstream default 300 ~ 15 h/scene; 80 ~ 5 h, validated)")
     p.add_argument("--vel_iter_cnt", type=int, default=80)
     p.add_argument("--gs_iterations", type=int, default=40000)
     p.add_argument("--bc_style", type=int, default=2, help="ground collider: 0 sticky, 1 slip, 2 separate (PhysON floors separate)")

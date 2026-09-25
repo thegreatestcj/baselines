@@ -228,6 +228,13 @@ def main():
     )
     json.dump(scene_json, open(pkg / "scene.json", "w"), indent=1)
 
+    # ---- expert set: upstream's released solid set; fluid experts only when the scene has a fluid region
+    kinds = {str((r.get("material_parameters") or r.get("material") or {}).get("kind", "")) for r in (scene.regions or [])}
+    fluid_scene = bool(kinds & {"newtonian", "non_newtonian", "fluid", "liquid"})
+    e_experts = ["CorotatedElasticity", "CorotatedElasticity", "StVKElasticity"] + (["FluidElasticity"] if fluid_scene else [])
+    p_experts = ["IdentityPlasticity", "IdentityPlasticity", "VonMisesPlasticity", "DruckerPragerPlasticity"] + (["SigmaPlasticity"] if fluid_scene else [])
+    print(f"[experts] region kinds {sorted(kinds)} -> elasticity {e_experts}, plasticity {p_experts}")
+
     # ---- config.yaml from the template
     text = open(args.template).read()
     fill = {
@@ -240,6 +247,8 @@ def main():
         "force_npz": force_npz, "force_json": force_json, "physics_h5": physics_h5,
         "test_cam_ids": "[" + ", ".join(str(c) for c in scene.test_cam_ids) + "]",
         "rgb_exclude_cams": "[" + ", ".join(str(c) for c in rgb_exclude) + "]",
+        "elasticity_physicals": "[" + ", ".join(e_experts) + "]",
+        "plasticity_physicals": "[" + ", ".join(p_experts) + "]",
     }
     for k, v in fill.items():
         text = text.replace("{{" + k + "}}", v)

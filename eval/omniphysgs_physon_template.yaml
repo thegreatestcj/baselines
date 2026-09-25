@@ -64,9 +64,14 @@ material:
   rho: 1000.0                     # density (kg/m^3), unchanged by the sim scaling
   elasticity: neural              # neural = GumbelElasticity over the expert list (hard softmax, straight-through)
   plasticity: neural
-  # expert lists; entries may repeat (independent parameters each) so a two-region scene is representable
-  elasticity_physicals: [CorotatedElasticity, CorotatedElasticity, StVKElasticity, FluidElasticity]
-  plasticity_physicals: [IdentityPlasticity, IdentityPlasticity, VonMisesPlasticity, DruckerPragerPlasticity, SigmaPlasticity]
+  # expert lists; entries may repeat (independent parameters each) so a two-region scene is representable.
+  # Filled by the converter: solid scenes get upstream's released solid set (Corotated x2 + StVK /
+  # Identity x2 + VonMises + DruckerPrager); scenes with a fluid region additionally get
+  # FluidElasticity + SigmaPlasticity. On solid scenes the fluid experts are an absorbing state of the
+  # straight-through mixture (once every particle picks them the object splashes and no gradient brings
+  # it back), which is why they are not in the default solid set.
+  elasticity_physicals: {{elasticity_physicals}}
+  plasticity_physicals: {{plasticity_physicals}}
   learnable_experts: true         # experts carry nn.Parameters (E, nu, sigma_y, friction_angle, cohesion)
   init_E: 1.0e5                   # world Pa; every expert starts here (E_sim = E * s^2)
   E_range: [1.0e3, 1.0e7]         # world Pa clamp
