@@ -24,7 +24,7 @@ set -u
 cd "$(dirname "$0")"
 GPUS=${1:?comma-separated GPU ids, e.g. 1,6}
 PER=${2:-1}
-Q=$PWD/tasks.txt
+Q=${TASKS_FILE:-$PWD/tasks.txt}   # TASKS_FILE=... runs a separate queue (e.g. one per method, placed on different GPUs)
 LOCK=$Q.lock
 CSV=$PWD/timings.csv
 source "$PWD/env.sh"

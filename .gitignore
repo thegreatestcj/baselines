@@ -60,3 +60,4 @@ tasks.txt.lock
 timings.csv
 gen.err
 .ti_cache/
+tasks_*.txt*
