@@ -37,23 +37,26 @@ Files: `physon_multiobject/mosiv/0_11.json`, `0_11_overlay.mp4`, `0_11_overlay_f
 `MOSIV/output/physon/multiobject_heterogeneous_new/0_11/{prediction_metrics.json,0_11-pred.json}`.
 Run: object-aware 3DGS 40k iterations, lifting (152k particles), 80 velocity iterations,
 80 parameter iterations (upstream default 300; 2.3 min/iteration over 48 frames), 4.8 h on one H200.
+The rollout re-simulates the fitted scene with GIC's CFL handling (dt halved on a CFL failure and
+the rollout restarted, as in training; here 400 substeps/frame were needed).
 
 | | CD all (10³ mm²) | CD apple | CD bread | EMD (m) | silhouette IoU (cam 0) |
 |---|---|---|---|---|---|
-| MOSIV | 43.3 | 91.4 | 21.0 | 0.171 | 0.53 |
+| MOSIV | 0.57 | 0.56 | 0.46 | 0.037 | 0.81 |
+| MOSIV paper, its own 2-object benchmark (observable frames, Table 1) | 1.26 | | | | PSNR 30.5 |
 
-Per-frame CD (all / apple / bread): 0.5/0.4/0.5 (frame 0), 0.7/0.6/0.6, 1.7/2.2/0.7, 4.6/6.6/1.5
-(frame 24), 32/54/9 (frame 32), 118/238/47 (frame 40). Fitted parameters vs GT:
+Per-frame CD (all / apple / bread): 0.47/0.39/0.47 (frame 0), 0.36/0.35/0.28 (8), 0.41/0.35/0.39 (16),
+0.48/0.50/0.36 (24), 0.61/0.60/0.51 (32), 0.76/0.80/0.58 (40). IoU stays 0.83–0.86 until frame ~32 and
+drops to 0.67 at frame 47 (the apple's late deformation/contact). Fitted parameters vs GT:
 
 | object | fitted | GT |
 |---|---|---|
 | apple (elastic) | E=9.7e4, ν=−0.41, v0=(0.078, 0.006, −0.010) | E=4.5e5, ν=0.36, v0=(0.09, 0.015, 0) |
 | bread (plasticine) | E=6.8e3, ν=0.14, σ_y=6.6e3, v0=(−0.086, 0.038, 0.066) | E=6e5, ν=0.34, σ_y=1.8e4, v0=(−0.09, −0.015, 0) |
 
-The velocities are recovered; the material parameters end far too soft (MOSIV's Poisson bound
-[−0.99, 0.5] even lets ν go negative), and once the gust peaks (frame ≈ 24) the predicted objects
-leave the GT trajectories — apple worst. Instance segmentation and the first ~20 frames are fine
-(IoU 0.83 → 0.6).
+Trajectories and silhouettes are recovered well; the material parameters themselves end far too
+soft (and MOSIV's Poisson bound [−0.99, 0.5] lets ν go negative) — the motion here is dominated by
+the known gust, so the geometry loss constrains stiffness weakly.
 
 ## Reproduce / next scenes
 

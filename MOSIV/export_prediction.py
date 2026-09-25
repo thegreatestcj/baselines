@@ -177,20 +177,31 @@ def main():
     view_id = a.view_id if a.view_id is not None else int((getattr(phys, "test_cam_ids", None) or [0])[0])
 
     sim = est.simulator
-    n_sub = int(sim.n_substeps[None])
-    rows, seq = [], []
-    for f in range(frames):
-        if f > 0:
-            sim.set_frame(f - 1)
-            for i in range(n_sub * (f - 1), n_sub * f):
-                if sim.cfl_satisfy[None]:
-                    sim.substep(i, cache=False)
-        pos = np.zeros((est.num_particles[None], 3), np.float32)
-        sim.get_x(f, pos)
-        if not sim.cfl_satisfy[None] or not np.isfinite(pos).all():
-            print(f"[export] simulation failed at frame {f} (CFL/NaN); holding the last state")
-            pos = seq[-1] if seq else pos
-        seq.append(pos)
+    # rollout with GIC's CFL handling (as train_dynamic_MO.forward): on a CFL failure the substep is
+    # halved and the whole rollout restarts from frame 0. est.forward(f) == simulator.advance(f-1)
+    # with the chunk caching (push_to_memory carries the state across 100-substep chunks) + get_x(f).
+    dt = float(sim.dt_ori[None])
+    for attempt in range(6):
+        seq, failed = [], None
+        est.initialize()
+        sim.set_dt(dt)
+        for f in range(frames):
+            with torch.no_grad():
+                pos = est.forward(f, img_backward=False)
+            pos = pos.detach().cpu().numpy().astype(np.float32) if torch.is_tensor(pos) else np.asarray(pos, np.float32)
+            if not sim.cfl_satisfy[None] or not np.isfinite(pos).all():
+                failed = f
+                break
+            seq.append(pos)
+        if failed is None:
+            break
+        dt /= 2
+        print(f"[export] CFL failure at frame {failed}; retrying with dt {dt:.3e} ({round(1 / (dt * float(phys.fps)))} substeps/frame)")
+    while len(seq) < frames:  # give up: hold the last finite state
+        print(f"[export] simulation still failing after {attempt + 1} attempts; holding the last state from frame {len(seq)}")
+        seq.append(seq[-1] if seq else np.zeros((est.num_particles[None], 3), np.float32))
+    rows = []
+    for f, pos in enumerate(seq):
         write_xyz(model / "mpm" / f"simulation_{f}.ply", pos)
         row = dict(frame=f)
         for k in range(2):
