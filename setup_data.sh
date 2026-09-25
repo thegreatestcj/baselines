@@ -11,6 +11,7 @@
 #     access to that org). Default: the subsets the omniphysgs_physon_het and
 #     mosiv_physon_mo groups use. Set
 #     PHYSON_SUBSETS= (empty) to skip PhysON entirely; the public benchmark
+#   PHYSON_SCENES: optional scene ids to fetch instead of whole subsets (see gen_tasks.sh)
 #     setup then works without org access.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -82,9 +83,17 @@ link "$STORE/vid2sim/dataset/GSO"           Vid2Sim/dataset/GSO
 # The physon_* task groups read it through OmniPhysGS/data/PhysON and MOSIV/data/PhysON.
 if [ -n "$PHYSON_SUBSETS" ]; then
   for sub in $PHYSON_SUBSETS; do
+    # PHYSON_SCENES="0_6 0_7" fetches only those scenes of every selected subset (a machine that
+    # runs part of a subset does not need the rest)
+    incl=()
+    if [ -n "${PHYSON_SCENES:-}" ]; then
+      for s in $PHYSON_SCENES; do incl+=(--include "$sub/$s/*"); done
+    else
+      incl=(--include "$sub/*")
+    fi
     for attempt in 1 2 3 4; do
       "$HF" download "$PHYSON_REPO" --repo-type dataset --local-dir "$STORE/physon" \
-        --include "$sub/*" && break
+        "${incl[@]}" && break
       [ "$attempt" = 4 ] && { echo "PhysON download ($sub) failed after 4 attempts" >&2; exit 1; }
       echo "PhysON download ($sub) interrupted (attempt $attempt), retrying in 90s..."; sleep 90
     done
