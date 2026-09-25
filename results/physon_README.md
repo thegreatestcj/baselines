@@ -14,7 +14,8 @@ Files: `physon_singleobject_heterogeneous_new/omniphysgs/0_0.json`, `0_0_overlay
 | | CD (10³ mm², 8192 samples) | EMD (m) | PSNR / SSIM / LPIPS (cam 1) | silhouette IoU |
 |---|---|---|---|---|
 | OmniPhysGS (default expert set, incl. fluid experts) | 10.95 | 0.149 | 24.2 / 0.930 / 0.287 | 0.60 |
-| OmniPhysGS (solid expert set, `0_0_solid*`) | see `0_0_solid.json` | | | |
+| OmniPhysGS (solid expert set, `0_0_solid*`) | 10.19 | 0.132 | 25.2 / 0.954 / 0.135 | 0.79 |
+| MOSIV paper's OmniPhysGS-RGB baseline on MOSIV's own benchmark (Table 1) | 11.79 | | PSNR 25.9 | |
 | reference: physics oracle, GT soft-region params (E=8e4, ν=.38, Corotated, no plasticity) | 8.81 | | 25.4 / 0.966 | 0.75 |
 | reference: physics oracle, GT hard-region params (E=1.8e6, ν=.30) | 5.29 | | 26.4 / 0.969 | 0.86 |
 
@@ -25,8 +26,9 @@ plasticity expert (+19 % fluid reset), so the object crumbles after contact (cya
 overlay from frame ~9 on). The straight-through expert mixture is the weak point on this data: it
 collapsed to all-fluid in epoch 0 and only partly recovered. The `0_0_solid` variant uses upstream's
 released solid expert set (Corotated ×2 + StVK / Identity ×2 + VonMises + Drucker–Prager) and keeps
-Identity plasticity for 99.9 % of the particles (E=5.5e5 at epoch 9); its evaluation is written
-next to this file when the run ends. The references show what the same pipeline gives with the true
+Identity plasticity for 94 % of the particles and one Corotated expert (E=5.8e5, ν=0.385) for all
+of them: no crumbling (IoU 0.98 until contact, 0.72 at the end), CD 1.1 before contact and 16–21
+after it — the stiffness lands between the two GT regions and the two-region structure is not found. The references show what the same pipeline gives with the true
 single-region parameters (no fitting): the observation/render path itself is sound (IoU 0.98 before
 contact).
 
