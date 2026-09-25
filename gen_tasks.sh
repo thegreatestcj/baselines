@@ -136,7 +136,9 @@ fi
 # gen_tasks.sh after setup_data.sh finishes to pick them up.
 physon_scene_ready() { # <scene dir>
   local d=$1 f n_view n_img
-  for f in all_data.json data point_clouds physics.h5 force_field.npz transforms_test.json; do
+  # physics.h5 / force_field.npz exist only in the `_new` subsets (declared force fields); the
+  # 24 fps subsets are gravity-only and ship neither
+  for f in all_data.json data point_clouds transforms_test.json metadata.json; do
     [ -e "$d/$f" ] || { echo "gen_tasks: $d incomplete (no $f); skipping" >&2; return 1; }
   done
   # data/ holds r_/a_/m_ variants of every (camera, frame) entry in all_data.json
