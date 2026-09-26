@@ -306,12 +306,20 @@ def prepare_gt_multi(dataset: ModelParams, iteration: int, pipeline: PipelinePar
     for oid in obj_ids:
         print(f"\n=== Processing Object {oid} ({obj_names[oid]}) ===")
         gaussians_obj = filter_gaussians_by_object(original_gaussians, object_id=oid, use_clustering_fix=use_clustering_fix)
+        if int((gaussians_obj.get_opacity.squeeze() > phys_args.opacity_threshold).sum()) < 10:
+            # baselines: the object-aware 3DGS assigned (almost) no Gaussians to this object (small objects in
+            # 4-6 object scenes); it cannot be lifted, so it is left out of the simulation and counted as missing
+            print(f"WARNING: object {oid} ({obj_names[oid]}) has no Gaussians after segmentation; skipped", flush=True)
+            continue
         scene_full.gaussians = gaussians_obj  # Update scene's gaussians
         outputs[oid] = prepare_gt(dataset, iteration, pipeline, phys_args, gaussians=gaussians_obj, scene=scene_full, object_id=oid)
         print(f"Object {oid} ({obj_names[oid]}) after filling: {len(outputs[oid][1]):,} particles")
 
     # Restore original gaussians
     scene_full.gaussians = original_gaussians
+    obj_ids = [oid for oid in obj_ids if oid in outputs]
+    if not obj_ids:
+        raise RuntimeError("No object received any Gaussians")
 
     print("\n=== Combining Results ===")
     grid_size = outputs[obj_ids[0]][3]
@@ -452,9 +460,9 @@ def prepare_gt(dataset: ModelParams, iteration: int, pipeline: PipelineParams, p
             bbox_bounds = bbox_maxs - bbox_mins
             density_volume = torch.zeros(volume_size.cpu().numpy().tolist()).to(init_inner_points)
             ids = torch.round((init_inner_points - bbox_mins.reshape(1, 3)) / curr_grid_size).to(torch.int64)
-            density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
+            ids = torch.minimum(ids.clamp(min=0), torch.tensor(density_volume.shape, device=ids.device) - 1); density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
             ids = torch.round((xyzt - bbox_mins.reshape(1, 3)) / curr_grid_size).to(torch.int64)
-            density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
+            ids = torch.minimum(ids.clamp(min=0), torch.tensor(density_volume.shape, device=ids.device) - 1); density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
             weight = torch.ones((1, 1, 3, 3, 3)).to(xyzt)
             weight = weight / weight.sum()
             for i in range(2, num_iter):
@@ -472,17 +480,17 @@ def prepare_gt(dataset: ModelParams, iteration: int, pipeline: PipelineParams, p
                 density_volume = torch.nn.functional.conv3d(density_volume, weight=weight, padding='same')[0, 0]
                 density_volume[density_volume < 0.5] = 0.0
                 ids = torch.round((init_inner_points - bbox_mins.reshape(1, 3)) / curr_grid_size).to(torch.int64)
-                density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
+                ids = torch.minimum(ids.clamp(min=0), torch.tensor(density_volume.shape, device=ids.device) - 1); density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
                 ids = torch.round((xyzt - bbox_mins.reshape(1, 3)) / curr_grid_size).to(torch.int64)
-                density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
+                ids = torch.minimum(ids.clamp(min=0), torch.tensor(density_volume.shape, device=ids.device) - 1); density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
                 bbox_bounds = bbox_maxs - bbox_mins
             for i in range(20):
                 density_volume = torch.nn.functional.conv3d(density_volume[None, None], weight=weight, padding='same')[0, 0]
                 density_volume[density_volume < 0.5] = 0.0
                 ids = torch.round((init_inner_points - bbox_mins.reshape(1, 3)) / curr_grid_size).to(torch.int64)
-                density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
+                ids = torch.minimum(ids.clamp(min=0), torch.tensor(density_volume.shape, device=ids.device) - 1); density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
                 ids = torch.round((xyzt - bbox_mins.reshape(1, 3)) / curr_grid_size).to(torch.int64)
-                density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
+                ids = torch.minimum(ids.clamp(min=0), torch.tensor(density_volume.shape, device=ids.device) - 1); density_volume[ids.T[0], ids.T[1], ids.T[2]] = 1.0
             if phys_args.random_sample:
                 density_volume = torch.nn.functional.conv3d(density_volume[None, None], weight=weight, padding='same')[0, 0]
                 half_grid_xyz = torch.stack(torch.meshgrid(
@@ -531,7 +539,7 @@ def prepare_gt(dataset: ModelParams, iteration: int, pipeline: PipelineParams, p
     return gts, vol, vol_densities, torch.tensor([curr_grid_size]), vol_surface, cam_info
 
 
-def forward(estimator: Estimator, img_backward=True, max_halvings=3):
+def forward(estimator: Estimator, img_backward=True, max_halvings=2):
     # baselines: upstream halved dt without bound on a CFL failure, so parameters that make the
     # simulation unstable turned one iteration into an hours-long silent spiral (each retry is a
     # full rollout at twice the substeps). After max_halvings the iteration is reported as failed

@@ -215,9 +215,9 @@ def main():
             gp = gt_dirs[k] / f"{f}.ply"
             if gp.exists() and len(pk):
                 row[f"cd_obj{k}"] = chamfer_sq_mm2(pk.astype(np.float64), read_xyz(gp).astype(np.float64))
-        if all(f"cd_obj{k}" in row for k in range(K)):
+        if all((gt_dirs[k] / f"{f}.ply").exists() for k in range(K)):
             gt_all = np.concatenate([read_xyz(gt_dirs[k] / f"{f}.ply") for k in range(K)], 0)
-            row["cd"] = chamfer_sq_mm2(pos.astype(np.float64), gt_all.astype(np.float64))
+            row["cd"] = chamfer_sq_mm2(pos.astype(np.float64), gt_all.astype(np.float64))  # objects that could not be lifted count as error
         rows.append(row)
         if f % 8 == 0:
             print(f"[export] frame {f}: " + ", ".join(f"{k} {v:.3f}" for k, v in row.items() if k != "frame"), flush=True)
