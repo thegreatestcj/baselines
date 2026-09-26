@@ -25,4 +25,5 @@ dependencies:
       - trimesh==4.1.0
       - einops==0.7.0
       - h5py
-      - git+https://github.com/facebookresearch/pytorch3d.git
+      - scikit-image
+      # pytorch3d needs torch at build time, so setup_env.sh installs it after this env exists

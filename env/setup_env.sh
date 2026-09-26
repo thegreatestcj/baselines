@@ -28,7 +28,10 @@ PY="$(conda info --base)/envs/baselines/bin/python"
 if [ ! -x "$PY" ]; then
   conda env create -n baselines -f env/environment.yml
 fi
-$PY -m pip install ninja yacs termcolor gitpython h5py scikit-learn matplotlib "huggingface_hub[cli]"  # (+ MOSIV: sklearn/matplotlib)
+$PY -m pip install ninja yacs termcolor gitpython h5py scikit-learn scikit-image matplotlib "huggingface_hub[cli]"  # (+ MOSIV: sklearn/matplotlib)
+# pytorch3d (MASIV / Spring-Gaus predict scripts only; not needed by GIC, MOSIV or eval/) must be
+# built against the installed torch, i.e. without pip's isolated build env; failure is not fatal
+$PY -m pip install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git" || echo "pytorch3d not installed (optional)"
 
 # Compiled CUDA deps are vendored with the cstdint header fix for newer gcc
 # (unpatchable as git+ installs). Two rasterizers coexist under different
