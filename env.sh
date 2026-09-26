@@ -9,9 +9,12 @@
 
 # Python interpreter that has the baseline deps (see env/setup_env.sh to
 # build it as a conda env named "baselines").
-if [ -z "${BASELINES_PY:-}" ] && command -v conda >/dev/null; then
-  _cand="$(conda info --base 2>/dev/null)/envs/baselines/bin/python"
-  [ -x "$_cand" ] && BASELINES_PY=$_cand
+if [ -z "${BASELINES_PY:-}" ]; then
+  # conda may keep user envs under ~/.conda/envs (or $CONDA_ENVS_PATH) instead of <base>/envs
+  for _cand in "$(command -v conda >/dev/null && conda info --base 2>/dev/null)/envs/baselines/bin/python" \
+               "$HOME/.conda/envs/baselines/bin/python" "${CONDA_ENVS_PATH:-/nonexistent}/baselines/bin/python"; do
+    [ -x "$_cand" ] && { BASELINES_PY=$_cand; break; }
+  done
 fi
 export BASELINES_PY=${BASELINES_PY:-$(command -v python)}
 
