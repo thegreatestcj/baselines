@@ -865,21 +865,38 @@ class Fitter:
         log(f"[eval] params: {json.dumps(params['experts_elasticity'])} v0 {params['v0_world']}", self.logf)
 
         test_cam = self.test_cam_ids[0]
-        rows, frames_video = [], []
-        x, v, C, F = self.initial_state()
-        self.mpm.reset()
-        last_ok = (x, v, C, F)
-        nan_from = None
-        for f in range(self.n_frames_total):
-            if f > 0:
-                if nan_from is None:
+        # baselines: the fitted stiffness can need a finer substep than the dataset's own (explicit
+        # MPM); a rollout whose speed exceeds eval.max_speed m/s (or goes non-finite) is redone with
+        # the substep halved, up to eval.max_dt_halvings times, before falling back to holding state
+        max_speed = float(cfg.eval.get("max_speed", 50.0)) if hasattr(cfg, "eval") else 50.0
+        max_halvings = int(cfg.eval.get("max_dt_halvings", 2)) if hasattr(cfg, "eval") else 2
+        states = None
+        for halving in range(max_halvings + 1):
+            states, blew_up = [], None
+            x, v, C, F = self.initial_state()
+            self.mpm.reset()
+            for f in range(self.n_frames_total):
+                if f > 0:
                     x, v, C, F = self.simulate_frame(x, v, C, F, e_cat, p_cat, f - 1, use_ckpt=False)
-                    if not self.finite(x, F):
-                        nan_from = f
-                        log(f"[eval] non-finite state at frame {f}; holding the last finite state", self.logf)
-                        x, v, C, F = last_ok
-                    else:
-                        last_ok = (x, v, C, F)
+                    if not self.finite(x, F) or float(v.norm(dim=1).max()) / self.s > max_speed:
+                        blew_up = f
+                        break
+                states.append((x, v, F))
+            if blew_up is None or halving == max_halvings:
+                break
+            self.steps_per_frame *= 2
+            self.dt /= 2
+            self.mpm.dt = self.dt
+            log(f"[eval] rollout unstable at frame {blew_up} (|v| > {max_speed} m/s or non-finite): retrying with "
+                f"dt {self.dt:.4g} s ({self.steps_per_frame} substeps/frame)", self.logf)
+        nan_from = blew_up
+        if nan_from is not None:
+            log(f"[eval] rollout still unstable from frame {nan_from}; holding the last finite state", self.logf)
+            while len(states) < self.n_frames_total:
+                states.append(states[-1])
+        rows, frames_video = [], []
+        for f in range(self.n_frames_total):
+            x, v, F = states[f]
             xw = self.sim_to_world(x)
             write_ply_xyz(self.out / "particles" / f"{f:03d}.ply", xw.cpu().numpy())
             pos_w, cov, rot = self.frame_render_params(x, F)
@@ -909,7 +926,8 @@ class Fitter:
         mean = lambda k: float(np.mean([r[k] for r in rows if k in r])) if any(k in r for r in rows) else None
         metrics = dict(per_frame=rows, n_frames=self.n_frames_total, test_cam=test_cam,
                        mean=dict(psnr=mean("psnr"), ssim=mean("ssim"), alpha_iou=mean("alpha_iou"), cd=mean("cd")),
-                       non_finite_from_frame=nan_from, timings=self.timings, steps=getattr(self, "step", 0))
+                       non_finite_from_frame=nan_from, eval_dt=self.dt, eval_steps_per_frame=self.steps_per_frame,
+                       timings=self.timings, steps=getattr(self, "step", 0))
         json.dump(metrics, open(self.out / "metrics.json", "w"), indent=1)
         log(f"[eval] mean psnr {metrics['mean']['psnr']:.2f} ssim {metrics['mean']['ssim']:.3f} iou {metrics['mean']['alpha_iou']:.3f}"
             + (f" cd {metrics['mean']['cd']:.3f} (10^3 mm^2)" if metrics['mean']['cd'] is not None else "") +
