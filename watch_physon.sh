@@ -14,9 +14,10 @@
 set -u
 cd "$(dirname "$0")"
 GROUP=${1:?mosiv|omni}; SCENES=${2:?scene ids}; GPUS=${3:?comma-separated gpu ids}
-STALE_MIN=${STALE_MIN:-40}; MAX_ATTEMPTS=${MAX_ATTEMPTS:-3}
+MAX_ATTEMPTS=${MAX_ATTEMPTS:-3}
 if [ "$GROUP" = mosiv ]; then
   MIN_FREE_GB=${MIN_FREE_GB:-50}; MAX_PER_GPU=${MAX_PER_GPU:-1}
+  STALE_MIN=${STALE_MIN:-150}   # the parameter stage prints nothing during a full 48-frame forward (+ CFL retries)
   SUB=${PHYSON_MO_SUBSET:-multiobject_heterogeneous}; TASKGROUP=mosiv_physon_mo
   done_of() { echo "MOSIV/output/physon/$SUB/$1/DONE"; }
   log_of() { echo "logs/mosiv_physon_${SUB}_$1.log"; }
@@ -25,6 +26,7 @@ if [ "$GROUP" = mosiv ]; then
   any_pat="train_dynamic_MO[.]py -c config/physon/"
 else
   MIN_FREE_GB=${MIN_FREE_GB:-30}; MAX_PER_GPU=${MAX_PER_GPU:-2}
+  STALE_MIN=${STALE_MIN:-40}    # fit.py logs every step
   SUB=${PHYSON_HET_SUBSET:-singleobject_heterogeneous}; TASKGROUP=omniphysgs_physon_het
   done_of() { echo "OmniPhysGS/outputs/PhysON/$SUB/$1/DONE"; }
   log_of() { echo "logs/omniphysgs_physon_${SUB}_$1.log"; }
