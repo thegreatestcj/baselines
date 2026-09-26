@@ -531,10 +531,15 @@ def prepare_gt(dataset: ModelParams, iteration: int, pipeline: PipelineParams, p
     return gts, vol, vol_densities, torch.tensor([curr_grid_size]), vol_surface, cam_info
 
 
-def forward(estimator: Estimator, img_backward=True):
+def forward(estimator: Estimator, img_backward=True, max_halvings=3):
+    # baselines: upstream halved dt without bound on a CFL failure, so parameters that make the
+    # simulation unstable turned one iteration into an hours-long silent spiral (each retry is a
+    # full rollout at twice the substeps). After max_halvings the iteration is reported as failed
+    # (estimator.cfl_failed) and train() steps back instead.
     dt = estimator.simulator.dt_ori[None]
     pos_sequence = []  # Store positions for video saving
-    while True:
+    estimator.cfl_failed = False
+    for attempt in range(max_halvings + 1):
         pos_sequence.clear()  # Clear previous attempts
         for idx in range(estimator.max_f):
             if idx == 0:
@@ -546,11 +551,16 @@ def forward(estimator: Estimator, img_backward=True):
                 pos_sequence.append(x.detach().clone())
             else:
                 pos_sequence.append(None)
-        if not estimator.succeed():
-            dt /= 2
-            print('cfl condition dissatisfy, shrink dt {}, step cnt {}'.format(dt, estimator.simulator.n_substeps[None] * 2))
-        else:
+            if not estimator.succeed():
+                break  # no point finishing a rollout that already failed
+        if estimator.succeed():
             break
+        if attempt == max_halvings:
+            print('cfl condition still dissatisfied after {} dt halvings (dt {}); iteration failed'.format(max_halvings, dt), flush=True)
+            estimator.cfl_failed = True
+            break
+        dt /= 2
+        print('cfl condition dissatisfy, shrink dt {}, step cnt {}'.format(dt, estimator.simulator.n_substeps[None] * 2), flush=True)
     return pos_sequence
 
 def save_training_debug(estimator: Estimator, iteration, save_path, pos_sequence, stage_name, max_frames=None):
@@ -975,7 +985,8 @@ def train(estimator: Estimator, phys_args, max_f=None, dataset=None, use_wandb=F
 
     if max_f is not None:
         estimator.max_f = max_f
-    
+    best_snapshot = None
+
     for stage, train_param in enumerate(zip([max_f], [iter_cnt])):
         max_f, iter_cnt = train_param
         if max_f is not None:
@@ -1056,6 +1067,20 @@ def train(estimator: Estimator, phys_args, max_f=None, dataset=None, use_wandb=F
             estimator.zero_grad()
             estimator.loss[None] = 0.0
             pos_sequence = forward(estimator)
+            if getattr(estimator, 'cfl_failed', False):
+                # baselines: the current parameters make the simulation unstable. Record the failure,
+                # go back to the best parameters seen so far and continue with halved learning rates.
+                losses.append(float('inf'))
+                if best_snapshot is not None:
+                    with torch.no_grad():
+                        for k, v in best_snapshot['params'].items():
+                            estimator.training_params.state_dict()[k].copy_(v)
+                        for k, v in best_snapshot['vel'].items():
+                            estimator.object_velocities.state_dict()[k].copy_(v)
+                for param_group in estimator.get_optimizer().param_groups:
+                    param_group['lr'] *= 0.5
+                print(f"iteration {i} failed (CFL); restored the best parameters and halved the learning rates", flush=True)
+                continue
             total_loss = estimator.loss[None] + estimator.image_loss
 
             # Add auxiliary loss for yield stress range constraint (optional)
@@ -1139,6 +1164,9 @@ def train(estimator: Estimator, phys_args, max_f=None, dataset=None, use_wandb=F
             best_params = estimated_params[min_idx]
             print("Best params: ", best_params, 'in {} iteration'.format(min_idx))
             print("Min loss: {}".format(losses[min_idx]))
+            if min_idx == len(losses) - 1:  # this iteration is the best so far: snapshot its (pre-step) parameters
+                best_snapshot = dict(params={k: v.detach().clone() for k, v in estimator.training_params.state_dict().items()},
+                                     vel={k: v.detach().clone() for k, v in estimator.object_velocities.state_dict().items()})
     
     if estimator.stage[None] == Estimator.velocity_stage and len(losses) > 0:
         min_idx = losses.index(min(losses))

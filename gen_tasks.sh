@@ -167,6 +167,8 @@ if [[ " $ALL " == *" mosiv_physon_mo "* ]]; then
   # velocity + per-object parameter fit; a declared external force is applied as known input) ->
   # export_prediction (rollout, plys, held-out-camera silhouettes) -> eval_scene -> overlay.
   # MOSIV_PHYSON_CONVERT_ARGS: converter options (e.g. --iter_cnt 100 --n_frames 32 --force_mode none).
+  # --resume_from_pred: a relaunched scene warm-starts from its <scene>-pred.json (best parameters so far);
+  # a fresh scene has none and starts from the material defaults.
   source env.sh
   mosiv_physon_task() { # subset scene
     local sub=$1 s=$2
@@ -175,7 +177,7 @@ if [[ " $ALL " == *" mosiv_physon_mo "* ]]; then
     local cam; cam=$(physon_test_cam "MOSIV/$src")
     local res="../results/physon_$sub/mosiv/$s"
     emit "mosiv_physon:$sub/$s" "$PWD/MOSIV" "$out/DONE" \
-      "$BASELINES_PY ../eval/convert_physon_to_mosiv.py --scene_data $src --out $conv --config_out $cfg ${MOSIV_PHYSON_CONVERT_ARGS:-} && $BASELINES_PY train_dynamic_MO.py -c $cfg -s $conv -m $out --reg_scale --reg_alpha && $BASELINES_PY export_prediction.py -c $cfg -s $conv -m $out --view_id $cam && $BASELINES_PY ../eval/eval_scene.py --pred_plys '$out/mpm/simulation_*.ply' --gt_plys '$src/point_clouds/*.ply' --out $res.json && $BASELINES_PY ../eval/overlay_video.py --gt_rgba '$src/data/a_${cam}_*.png' --pred_mask '$out/img_render/${cam}_*_mask.png' --title MOSIV --subtitle '$sub/$s' --out ${res}_overlay && touch $out/DONE"
+      "$BASELINES_PY ../eval/convert_physon_to_mosiv.py --scene_data $src --out $conv --config_out $cfg ${MOSIV_PHYSON_CONVERT_ARGS:-} && $BASELINES_PY train_dynamic_MO.py -c $cfg -s $conv -m $out --reg_scale --reg_alpha --resume_from_pred && $BASELINES_PY export_prediction.py -c $cfg -s $conv -m $out --view_id $cam && $BASELINES_PY ../eval/eval_scene.py --pred_plys '$out/mpm/simulation_*.ply' --gt_plys '$src/point_clouds/*.ply' --out $res.json && $BASELINES_PY ../eval/overlay_video.py --gt_rgba '$src/data/a_${cam}_*.png' --pred_mask '$out/img_render/${cam}_*_mask.png' --title MOSIV --subtitle '$sub/$s' --out ${res}_overlay && touch $out/DONE"
   }
   sub=${PHYSON_MO_SUBSET:-multiobject_heterogeneous}
   for d in MOSIV/data/PhysON/$sub/*/; do
