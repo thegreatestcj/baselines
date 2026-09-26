@@ -283,7 +283,7 @@ def main():
     cfg = dict(
         data=data,
         gs=dict(eval=True, is_blender=True, timenet=True, test_iterations=[5000, 6000, 7000],
-                save_iterations=sorted(set([7000, 10000, 20000, 30000, a.gs_iterations])), quiet=False,
+                save_iterations=sorted({i for i in (7000, 10000, 20000, 30000, a.gs_iterations) if i <= a.gs_iterations}), quiet=False,
                 iterations=a.gs_iterations, enable_mask_training=True, mask_loss_weight=0.5),
         physics=dict(
             id=src.name, fps=fps, dt=1.0 / (fps * mpm_iter), gravity=scene.gravity.tolist(), ground_friction=0.0,
