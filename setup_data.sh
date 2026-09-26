@@ -11,8 +11,10 @@
 #     access to that org). Default: the subsets the omniphysgs_physon_het and
 #     mosiv_physon_mo groups use. Set
 #     PHYSON_SUBSETS= (empty) to skip PhysON entirely; the public benchmark
-#   PHYSON_SCENES: optional scene ids to fetch instead of whole subsets (see gen_tasks.sh)
 #     setup then works without org access.
+#   PHYSON_SCENES: optional scene ids to fetch instead of whole subsets (see gen_tasks.sh)
+#   PUBLIC_PACK=0: skip the public benchmark pack (PAC-NeRF, Spring-Gaus, Vid2Sim GSO +
+#     checkpoints, ~20 GB) — a machine that only runs the PhysON groups does not need it
 set -euo pipefail
 cd "$(dirname "$0")"
 source env.sh
@@ -27,6 +29,7 @@ HF="$(dirname "$BASELINES_PY")/hf"
 [ -x "$HF" ] || HF=$(command -v hf) || { echo "hf CLI not found — run env/setup_env.sh first" >&2; exit 1; }
 
 mkdir -p "$STORE"
+if [ "${PUBLIC_PACK:-1}" != 0 ]; then
 # hf download resumes partial downloads; retry a few times around Hub 429s.
 for attempt in 1 2 3 4; do
   "$HF" download "$REPO" --repo-type dataset --local-dir "$STORE" && break
@@ -74,6 +77,10 @@ link "$STORE/spring_gaus"                   Spring-Gaus/data
 # vendored (holds a README), so only the GSO subdir is linked.
 link "$STORE/vid2sim/checkpoints"           Vid2Sim/checkpoints
 link "$STORE/vid2sim/dataset/GSO"           Vid2Sim/dataset/GSO
+else
+  echo "PUBLIC_PACK=0: skipping the public benchmark pack."
+  link () { mkdir -p "$(dirname "$2")"; ln -sfn "$1" "$2"; }
+fi
 
 # NeuMA: TODO once its setup lands
 
