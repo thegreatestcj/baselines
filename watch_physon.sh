@@ -40,7 +40,7 @@ free_gb() {
 }
 tasks_on_gpu() {  # tasks of this group bound to GPU $1 (wrappers carry CUDA_VISIBLE_DEVICES)
   local g=$1 n=0 p
-  for p in $(pgrep -u "$USER" -f "$any_pat"); do
+  for p in $(pgrep -u "$(id -un)" -f "$any_pat"); do
     tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | grep -qx "CUDA_VISIBLE_DEVICES=$g" && n=$((n + 1))
   done
   echo $n
@@ -82,7 +82,7 @@ while [ $(( $(date +%s) - t0 )) -lt 86400 ]; do
   for s in $SCENES; do
     [ -f "$(done_of "$s")" ] && continue
     all_done=0
-    wr=$(pgrep -u "$USER" -f "$(wrapper_pat "$s")" | head -1)
+    wr=$(pgrep -u "$(id -un)" -f "$(wrapper_pat "$s")" | head -1)
     if [ -n "$wr" ]; then
       lf=$(log_of "$s")
       if [ -f "$lf" ] && [ $(( ($(date +%s) - $(stat -c %Y "$lf")) / 60 )) -ge "$STALE_MIN" ]; then
