@@ -35,7 +35,7 @@ else
   any_pat="fit[.]py --config data/PhysON/"
 fi
 mkdir -p logs
-declare -A attempts
+declare -A attempts assigned launched_at   # assigned[scene]=gpu for tasks this script launched
 log() { echo "$(date '+%m-%d %H:%M') $*"; }
 free_gb() {
   nvidia-smi --query-gpu=memory.total,memory.used --format=csv,noheader,nounits -i "$1" | awk -F', ' '{print int(($1-$2)/1024)}'
@@ -47,12 +47,21 @@ tasks_on_gpu() {  # tasks of this group bound to GPU $1 (wrappers carry CUDA_VIS
   done
   echo $n
 }
+occupancy() {  # max(process-based count, tasks this script placed on the GPU in the last 30 min or still running)
+  local g=$1 n m=0 s
+  n=$(tasks_on_gpu "$g")
+  for s in "${!assigned[@]}"; do
+    [ "${assigned[$s]}" = "$g" ] || continue
+    if [ $(( $(date +%s) - ${launched_at[$s]:-0} )) -lt 1800 ] || pgrep -u "$(id -un)" -f "$(wrapper_pat "$s")" >/dev/null; then m=$((m + 1)); fi
+  done
+  [ "$n" -gt "$m" ] && echo "$n" || echo "$m"
+}
 pick_gpu() {
   local best="" bestfree=0 g f
   for g in ${GPUS//,/ }; do
     f=$(free_gb "$g")
     [ "$f" -ge "$MIN_FREE_GB" ] || continue
-    [ "$(tasks_on_gpu "$g")" -lt "$MAX_PER_GPU" ] || continue
+    [ "$(occupancy "$g")" -lt "$MAX_PER_GPU" ] || continue
     [ "$f" -gt "$bestfree" ] && { best=$g; bestfree=$f; }
   done
   echo "$best"
@@ -74,6 +83,7 @@ launch() {  # scene
   [ -s "$tf" ] || { log "gen_tasks produced nothing for $s: $(head -1 "$tf.err")"; attempts[$s]=$(( ${attempts[$s]} - 1 )); return; }
   if [ -n "${DRY:-}" ]; then log "DRY: would launch $s on GPU $gpu"; rm -f "$tf"; return; fi
   TASKS_FILE=$tf setsid nohup bash run_queue.sh "$gpu" 1 >> "logs/watch_${GROUP}_queue.log" 2>&1 < /dev/null &
+  assigned[$s]=$gpu; launched_at[$s]=$(date +%s)
   log "LAUNCHED $s on GPU $gpu (attempt ${attempts[$s]}, free $(free_gb "$gpu") GB)"
   sleep 20   # let the worker claim the task before the next placement decision
 }
@@ -82,7 +92,7 @@ t0=$(date +%s)
 while [ $(( $(date +%s) - t0 )) -lt 86400 ]; do
   all_done=1
   for s in $SCENES; do
-    [ -f "$(done_of "$s")" ] && continue
+    [ -f "$(done_of "$s")" ] && { unset "assigned[$s]"; continue; }
     all_done=0
     wr=$(pgrep -u "$(id -un)" -f "$(wrapper_pat "$s")" | head -1)
     if [ -n "$wr" ]; then
